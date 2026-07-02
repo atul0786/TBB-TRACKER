@@ -98,6 +98,7 @@
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="entries">Entries</button>
+      <button class="tab" data-tab="ledger">Party Ledger</button>
       <button class="tab" data-tab="parties">Party Master</button>
       <button class="tab" data-tab="dashboard">Dashboard</button>
     </div>
@@ -135,17 +136,23 @@
           <span class="hint-pill" id="modeHintPill">auto-filled</span>
           <div class="autocomplete-list" id="partyAutocomplete"></div>
         </div>
+        <div class="field"><label>Bill Number</label><input type="text" id="f-billnumber" placeholder="e.g. BILL-2026-001"></div>
         <div class="field"><label>Bill Period</label><input type="text" id="f-period" placeholder="June"></div>
         <div class="field"><label>Amount (₹)</label><input type="text" id="f-amount" placeholder="0"></div>
         <div class="field"><label>Bill Date</label><input type="date" id="f-billdate"></div>
         <div class="field"><label>Bill Submission Date</label><input type="date" id="f-submitdate"></div>
         <div class="field"><label>Delivery Mode</label>
           <select id="f-mode">
-            <option value="Mail">Mail only</option>
-            <option value="Physical">Physical bill</option>
-            <option value="POD">POD required</option>
+            <option value="Email Only">Email Only</option>
+            <option value="Hard Copy Only">Hard Copy Only</option>
+            <option value="Email + Hard Copy">Email + Hard Copy</option>
+            <option value="Email + POD">Email + POD</option>
+            <option value="Hard Copy + POD">Hard Copy + POD</option>
+            <option value="Email + Hard Copy + POD">Email + Hard Copy + POD</option>
           </select>
         </div>
+        <div class="field"><label>Email Sent Date</label><input type="date" id="f-emaildate"></div>
+        <div class="field"><label>Hard Copy Sent Date</label><input type="date" id="f-hardcopydate"></div>
         <div class="field"><label>Actual Submission (POD)</label><input type="date" id="f-actualdate"></div>
         <div class="field"><label>Payment Date</label><input type="date" id="f-paydate"></div>
       </div>
@@ -169,7 +176,7 @@
       </div>
       <div class="table-scroll">
         <table id="entryTable">
-          <thead><tr><th>Party</th><th>Period</th><th>Bill Date</th><th>Submitted</th><th>Mode</th><th>POD/Actual</th><th>Amount</th><th>Payment Date</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Bill Date</th><th>Email Sent</th><th>Hard Copy Sent</th><th>Submitted</th><th>Mode</th><th>POD/Actual</th><th>Amount</th><th>Payment Date</th><th>Status</th><th></th></tr></thead>
           <tbody id="entryBody"></tbody>
         </table>
       </div>
@@ -186,7 +193,14 @@
       <div class="form-grid">
         <div class="field wide"><label>Party Name</label><input type="text" id="p-name" placeholder="e.g. ABC Logistics"></div>
         <div class="field"><label>Default Delivery Mode</label>
-          <select id="p-mode"><option value="Mail">Mail only</option><option value="Physical">Physical bill</option><option value="POD">POD required</option></select>
+          <select id="p-mode">
+            <option value="Email Only">Email Only</option>
+            <option value="Hard Copy Only">Hard Copy Only</option>
+            <option value="Email + Hard Copy">Email + Hard Copy</option>
+            <option value="Email + POD">Email + POD</option>
+            <option value="Hard Copy + POD">Hard Copy + POD</option>
+            <option value="Email + Hard Copy + POD">Email + Hard Copy + POD</option>
+          </select>
         </div>
         <div class="field wide"><label>Notes</label><input type="text" id="p-notes" placeholder="e.g. always needs POD copy attached"></div>
       </div>
@@ -205,9 +219,43 @@
     </div>
   </div>
 
+  <!-- ============ PARTY LEDGER ============ -->
+  <div class="panel" id="panel-ledger">
+    <div class="card">
+      <h2>Party Ledger</h2>
+      <div class="desc">Ek party choose karein — uske sabhi bills, payments aur running balance yahan dikhega.</div>
+      <div class="rule"></div>
+      <div class="filter-row">
+        <select id="ledgerPartySelect" style="min-width:260px;"><option value="">— Party select karein —</option></select>
+      </div>
+      <div id="ledgerEmpty" class="empty">Upar se ek party select karein.</div>
+      <div id="ledgerContent" style="display:none;">
+        <div class="stat-row" id="ledgerStatRow"></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Bill #</th><th>Period</th><th>Bill Date</th><th>Mode</th><th>Submitted</th><th>Amount</th><th>Payment Date</th><th>Status</th><th>Running Balance</th></tr></thead>
+            <tbody id="ledgerBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ DASHBOARD ============ -->
   <div class="panel" id="panel-dashboard">
     <div class="stat-row" id="statRow"></div>
+    <div class="card">
+      <h2>Email Sent Tracking</h2>
+      <div class="desc">Bill email hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Email Sent</th><th>Days Since Email</th></tr></thead><tbody id="emailTrackBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Hard Copy Dispatch Tracking</h2>
+      <div class="desc">Hard copy dispatch hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Hard Copy Sent</th><th>Days Since Dispatch</th></tr></thead><tbody id="hcTrackBody"></tbody></table></div>
+    </div>
     <div class="card">
       <h2>Pending Payments by Party</h2>
       <div class="desc">Parties who haven't paid yet, and how much is outstanding.</div>
@@ -254,6 +302,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active'); document.getElementById('panel-'+t.dataset.tab).classList.add('active');
     if(t.dataset.tab==='dashboard' && typeof renderDashboard==='function') renderDashboard();
+    if(t.dataset.tab==='ledger' && typeof renderLedger==='function') renderLedger();
   });
 });
 
@@ -312,15 +361,22 @@ function normDate(v){
 }
 function normMode(v){
   const s = (v||'').toString().trim().toLowerCase();
-  if(s.startsWith('pod')) return 'POD';
-  if(s.startsWith('phys')) return 'Physical';
-  return 'Mail';
+  const hasEmail = s.includes('email') || s.includes('mail');
+  const hasHard = s.includes('hard') || s.includes('phys');
+  const hasPod = s.includes('pod');
+  if(hasEmail && hasHard && hasPod) return 'Email + Hard Copy + POD';
+  if(hasHard && hasPod) return 'Hard Copy + POD';
+  if(hasEmail && hasPod) return 'Email + POD';
+  if(hasEmail && hasHard) return 'Email + Hard Copy';
+  if(hasHard) return 'Hard Copy Only';
+  if(hasEmail) return 'Email Only';
+  return 'Email Only';
 }
 
 // ---------------- DATA LOAD ----------------
 async function loadAll(){
   if(!isConfigured || !sb){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Setup pehle poora karein.'; return; }
-  el('entryBody').innerHTML = '<tr><td colspan="10" class="loading">Loading entries…</td></tr>';
+  el('entryBody').innerHTML = '<tr><td colspan="13" class="loading">Loading entries…</td></tr>';
   try{
     const [{ data:bills, error:e1 }, { data:pm, error:e2 }] = await Promise.all([
       sb.from('bills').select('*').order('bill_date', { ascending:false }),
@@ -328,14 +384,15 @@ async function loadAll(){
     ]);
     if(e1) throw e1;
     if(e2) throw e2;
-    entries = bills.map(r=>({ id:r.id, party:r.party, billPeriod:r.bill_period, amount:r.amount,
-      billDate:r.bill_date, submitDate:r.submit_date, mode:r.mode, actualDate:r.actual_date, payDate:r.pay_date }));
+    entries = bills.map(r=>({ id:r.id, party:r.party, billNumber:r.bill_number, billPeriod:r.bill_period, amount:r.amount,
+      billDate:r.bill_date, emailDate:r.email_date, hardcopyDate:r.hardcopy_date, submitDate:r.submit_date, mode:r.mode, actualDate:r.actual_date, payDate:r.pay_date }));
     parties = pm.map(r=>({ id:r.id, party:r.party, mode:r.default_mode, notes:r.notes }));
   }catch(e){
     showErr('Data load nahi hua — Supabase URL/Key check karein. ('+ (e.message||e) +')');
     entries = []; parties = [];
   }
   populatePeriodFilter();
+  populateLedgerPartySelect();
   render();
   renderParties();
 }
@@ -348,6 +405,42 @@ function populatePeriodFilter(){
   sel.value = cur;
 }
 
+// ---------------- PARTY LEDGER ----------------
+function populateLedgerPartySelect(){
+  const sel = el('ledgerPartySelect');
+  const cur = sel.value;
+  const names = [...new Set([...entries.map(e=>e.party), ...parties.map(p=>p.party)].filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = '<option value="">— Party select karein —</option>' + names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.value = cur;
+}
+el('ledgerPartySelect').addEventListener('change', renderLedger);
+function renderLedger(){
+  const party = el('ledgerPartySelect').value;
+  if(!party){ el('ledgerEmpty').style.display='block'; el('ledgerContent').style.display='none'; return; }
+  el('ledgerEmpty').style.display='none'; el('ledgerContent').style.display='block';
+  const rows = entries.filter(e=>e.party===party).sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
+  const totalBilled = rows.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const totalPaid = rows.filter(e=>e.payDate).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const pendingAmt = totalBilled - totalPaid;
+  el('ledgerStatRow').innerHTML = `
+    <div class="stat"><div class="label">Total Bills</div><div class="val">${rows.length}</div></div>
+    <div class="stat green"><div class="label">Total Billed</div><div class="val">${fmtMoney(totalBilled)}</div></div>
+    <div class="stat green"><div class="label">Total Paid</div><div class="val">${fmtMoney(totalPaid)}</div></div>
+    <div class="stat rust"><div class="label">Pending Balance</div><div class="val">${fmtMoney(pendingAmt)}</div></div>`;
+  let running = 0;
+  el('ledgerBody').innerHTML = rows.length ? rows.map(e=>{
+    const amt = Number(e.amount)||0;
+    running += amt - (e.payDate ? amt : 0);
+    const paid = !!e.payDate;
+    return `<tr>
+      <td class="name-cell">${escapeHtml(e.billNumber||'—')}</td><td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td>
+      <td><span class="badge mode">${escapeHtml(e.mode||'—')}</span></td><td>${fmtDate(e.submitDate)}</td>
+      <td>${fmtMoney(amt)}</td><td>${fmtDate(e.payDate)}</td>
+      <td><span class="badge ${paid?'paid':'pending'}">${paid?'Paid':'Pending'}</span></td>
+      <td style="font-weight:700;">${fmtMoney(running)}</td></tr>`;
+  }).join('') : '<tr><td colspan="9" class="empty">Is party ka koi bill nahi mila</td></tr>';
+}
+
 // ---------------- PARTY AUTOCOMPLETE + AUTO-FILL ----------------
 const partyInput = el('f-party');
 const autoList = el('partyAutocomplete');
@@ -357,7 +450,7 @@ partyInput.addEventListener('input', ()=>{
   if(!q){ autoList.style.display='none'; return; }
   const matches = parties.filter(p=>p.party.toLowerCase().includes(q)).slice(0,8);
   if(matches.length===0){ autoList.style.display='none'; return; }
-  autoList.innerHTML = matches.map(p=>`<div data-party="${escapeHtml(p.party)}">${escapeHtml(p.party)} <span style="color:var(--slate);font-size:11px;">— ${p.mode||'Mail'}</span></div>`).join('');
+  autoList.innerHTML = matches.map(p=>`<div data-party="${escapeHtml(p.party)}">${escapeHtml(p.party)} <span style="color:var(--slate);font-size:11px;">— ${p.mode||'Email Only'}</span></div>`).join('');
   autoList.style.display='block';
   autoList.querySelectorAll('div').forEach(d=>{
     d.addEventListener('click', ()=>{
@@ -380,8 +473,9 @@ partyInput.addEventListener('blur', ()=>{ setTimeout(()=>{ applyPartySelection(p
 
 // ---------------- BILL CRUD ----------------
 async function saveEntry(entry){
-  const row = { party: entry.party, bill_period: entry.billPeriod, amount: entry.amount || null,
-    bill_date: entry.billDate || null, submit_date: entry.submitDate || null, mode: entry.mode,
+  const row = { party: entry.party, bill_number: entry.billNumber || null, bill_period: entry.billPeriod, amount: entry.amount || null,
+    bill_date: entry.billDate || null, email_date: entry.emailDate || null, hardcopy_date: entry.hardcopyDate || null,
+    submit_date: entry.submitDate || null, mode: entry.mode,
     actual_date: entry.actualDate || null, pay_date: entry.payDate || null };
   if(editingId){ const { error } = await sb.from('bills').update(row).eq('id', editingId); if(error) throw error; }
   else { const { error } = await sb.from('bills').insert(row); if(error) throw error; }
@@ -392,14 +486,15 @@ async function deleteEntry(id){
   catch(e){ showErr('Delete failed: '+(e.message||e)); }
 }
 function resetForm(){
-  ['f-party','f-period','f-amount','f-billdate','f-submitdate','f-actualdate','f-paydate'].forEach(id=>el(id).value='');
-  el('f-mode').value='Mail'; editingId=null; el('modeHintPill').style.display='none';
+  ['f-party','f-billnumber','f-period','f-amount','f-billdate','f-submitdate','f-emaildate','f-hardcopydate','f-actualdate','f-paydate'].forEach(id=>el(id).value='');
+  el('f-mode').value='Email Only'; editingId=null; el('modeHintPill').style.display='none';
   el('formTitle').textContent='Add Bill Entry'; el('cancelEditBtn').style.display='none';
 }
 function fillForm(entry){
-  el('f-party').value=entry.party||''; el('f-period').value=entry.billPeriod||'';
+  el('f-party').value=entry.party||''; el('f-billnumber').value=entry.billNumber||''; el('f-period').value=entry.billPeriod||'';
   el('f-amount').value=entry.amount||''; el('f-billdate').value=entry.billDate||'';
-  el('f-submitdate').value=entry.submitDate||''; el('f-mode').value=entry.mode||'Mail';
+  el('f-submitdate').value=entry.submitDate||''; el('f-mode').value=entry.mode||'Email Only';
+  el('f-emaildate').value=entry.emailDate||''; el('f-hardcopydate').value=entry.hardcopyDate||'';
   el('f-actualdate').value=entry.actualDate||''; el('f-paydate').value=entry.payDate||'';
   editingId=entry.id; el('formTitle').textContent='Edit Bill Entry';
   el('cancelEditBtn').style.display='inline-block';
@@ -409,8 +504,9 @@ el('saveBtn').addEventListener('click', async ()=>{
   if(!isConfigured || !sb){ showErr('Pehle Supabase setup poora karein.'); return; }
   const party = el('f-party').value.trim();
   if(!party){ showErr('Party name is required.'); return; }
-  const entry = { party, billPeriod: el('f-period').value.trim(), amount: el('f-amount').value.trim(),
+  const entry = { party, billNumber: el('f-billnumber').value.trim(), billPeriod: el('f-period').value.trim(), amount: el('f-amount').value.trim(),
     billDate: el('f-billdate').value, submitDate: el('f-submitdate').value, mode: el('f-mode').value,
+    emailDate: el('f-emaildate').value, hardcopyDate: el('f-hardcopydate').value,
     actualDate: el('f-actualdate').value, payDate: el('f-paydate').value };
   el('saveBtn').textContent='Saving…'; el('saveBtn').disabled=true;
   try{ await saveEntry(entry); resetForm(); await loadAll(); }
@@ -426,7 +522,7 @@ async function savePartyRow(p){
   else { const { error } = await sb.from('party_master').upsert(row, { onConflict:'party' }); if(error) throw error; }
 }
 function resetPartyForm(){
-  el('p-name').value=''; el('p-mode').value='Mail'; el('p-notes').value='';
+  el('p-name').value=''; el('p-mode').value='Email Only'; el('p-notes').value='';
   editingPartyId=null; el('partyCancelBtn').style.display='none';
 }
 el('partySaveBtn').addEventListener('click', async ()=>{
@@ -453,7 +549,7 @@ function renderParties(){
   tbody.innerHTML = parties.map(p=>`
     <tr data-id="${p.id}" style="cursor:pointer;">
       <td class="name-cell">${escapeHtml(p.party)}</td>
-      <td><span class="badge mode">${p.mode||'Mail'}</span></td>
+      <td><span class="badge mode">${p.mode||'Email Only'}</span></td>
       <td class="name-cell" style="font-weight:400;color:var(--slate);">${escapeHtml(p.notes||'—')}</td>
       <td><button class="del-btn" data-pdel="${p.id}">✕</button></td>
     </tr>`).join('');
@@ -461,7 +557,7 @@ function renderParties(){
     row.addEventListener('click',(ev)=>{
       if(ev.target.closest('.del-btn')) return;
       const p = parties.find(x=>x.id===row.dataset.id);
-      if(p){ el('p-name').value=p.party; el('p-mode').value=p.mode||'Mail'; el('p-notes').value=p.notes||'';
+      if(p){ el('p-name').value=p.party; el('p-mode').value=p.mode||'Email Only'; el('p-notes').value=p.notes||'';
         editingPartyId=p.id; el('partyCancelBtn').style.display='inline-block'; window.scrollTo({top:0,behavior:'smooth'}); }
     });
   });
@@ -487,8 +583,11 @@ el('importFile').addEventListener('change', async (ev)=>{
       if(!party) continue;
       toInsert.push({
         party,
+        bill_number: (r['Bill Number']||'').toString().trim() || null,
         bill_period: (r['Bill Period']||'').toString().trim(),
         bill_date: normDate(r['Bill Date']),
+        email_date: normDate(r['Email Sent Date']),
+        hardcopy_date: normDate(r['Hard Copy Sent Date']),
         submit_date: normDate(r['Bill Submission Date']),
         mode: normMode(r['Delivery Mode']),
         actual_date: normDate(r['Actual Submission Date (POD)'] || r['Actual Submission Date']),
@@ -510,16 +609,16 @@ el('importFile').addEventListener('change', async (ev)=>{
 el('downloadTemplateBtn').addEventListener('click', ()=>{
   if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const wb = XLSX.utils.book_new();
-  const headers = ["Party Name","Bill Period","Bill Date","Bill Submission Date","Delivery Mode","Actual Submission Date (POD)","Amount","Payment Date"];
-  const sample = ["ABC Logistics","June","05-06-2026","07-06-2026","POD","15-06-2026","45000",""];
+  const headers = ["Bill Number","Party Name","Bill Period","Bill Date","Email Sent Date","Hard Copy Sent Date","Bill Submission Date","Delivery Mode","Actual Submission Date (POD)","Amount","Payment Date"];
+  const sample = ["BILL-2026-001","ABC Logistics","June","05-06-2026","06-06-2026","08-06-2026","07-06-2026","Email + Hard Copy + POD","15-06-2026","45000",""];
   const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
-  ws['!cols'] = headers.map(()=>({wch:26}));
+  ws['!cols'] = headers.map(()=>({wch:24}));
 
-  // Date columns: Bill Date(2), Bill Submission Date(3), Actual/POD Date(5), Payment Date(7)
+  // Date columns: Bill Date(3), Email Sent Date(4), Hard Copy Sent Date(5), Bill Submission Date(6), Actual/POD Date(8), Payment Date(10)
   // Force TEXT format ('@') on these columns for many rows ahead, so Excel NEVER
   // auto-converts a typed "DD-MM-YYYY" value into its own locale date (which was
   // turning e.g. 30-06-2026 into 6-30-2026 on US-locale Excel installs).
-  const dateColIdx = [2,3,5,7];
+  const dateColIdx = [3,4,5,6,8,10];
   const totalRows = 300;
   for(let r=1; r<=totalRows; r++){
     dateColIdx.forEach(c=>{
@@ -538,9 +637,10 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
     [""],
     ["1. Date format HAMESHA DD-MM-YYYY rakhein — jaise: 05-06-2026 (5 June 2026)."],
     ["2. 'Bill Upload' sheet ke date columns TEXT format me hain — jo DD-MM-YYYY type karenge, wahi save hoga, Excel use apne aap kisi aur format me nahi badlega."],
-    ["3. Delivery Mode column me sirf ye 3 me se ek likhein: Mail / Physical / POD"],
-    ["4. Payment Date khali chhod sakte hain agar abhi payment nahi hui."],
-    ["5. Party Name wahi likhein jo Party Master tab me save hai, taaki Delivery Mode auto-match ho sake."]
+    ["3. Delivery Mode column me in 6 me se ek exact likhein: Email Only / Hard Copy Only / Email + Hard Copy / Email + POD / Hard Copy + POD / Email + Hard Copy + POD"],
+    ["4. Bill Number unique rakhein taaki bill-wise payment track ho sake."],
+    ["5. Email Sent Date, Hard Copy Sent Date, Payment Date — jo abhi nahi hua hai wo khali chhod sakte hain."],
+    ["6. Party Name wahi likhein jo Party Master tab me save hai, taaki Delivery Mode auto-match ho sake."]
   ]);
   wsInfo['!cols'] = [{wch:95}];
 
@@ -552,7 +652,8 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
 el('exportBtn').addEventListener('click', ()=>{
   if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const rows = getFilteredEntries().map(e=>({
-    "Party Name": e.party, "Bill Period": e.billPeriod, "Bill Date": e.billDate,
+    "Bill Number": e.billNumber, "Party Name": e.party, "Bill Period": e.billPeriod, "Bill Date": e.billDate,
+    "Email Sent Date": e.emailDate, "Hard Copy Sent Date": e.hardcopyDate,
     "Bill Submission Date": e.submitDate, "Delivery Mode": e.mode,
     "Actual Submission Date (POD)": e.actualDate, "Amount": e.amount,
     "Payment Date": e.payDate, "Status": e.payDate ? "Paid" : "Pending"
@@ -601,8 +702,11 @@ function render(){
       const edgeColor = paid ? 'transparent' : ['#15803D','#B45309','#C2410C','#1e1a17'][bIdx];
       return `<tr class="entry-row" style="cursor:pointer" data-id="${e.id}">
         <td class="name-cell" style="border-left:4px solid ${edgeColor}">${escapeHtml(e.party)}</td>
-        <td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td><td>${fmtDate(e.submitDate)}</td>
-        <td><span class="badge mode">${e.mode||'—'}</span></td><td>${fmtDate(e.actualDate)}</td><td>${fmtMoney(e.amount)}</td><td>${fmtDate(e.payDate)}</td>
+        <td>${escapeHtml(e.billNumber||'—')}</td>
+        <td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td>
+        <td>${fmtDate(e.emailDate)}</td><td>${fmtDate(e.hardcopyDate)}</td>
+        <td>${fmtDate(e.submitDate)}</td>
+        <td><span class="badge mode">${escapeHtml(e.mode||'—')}</span></td><td>${fmtDate(e.actualDate)}</td><td>${fmtMoney(e.amount)}</td><td>${fmtDate(e.payDate)}</td>
         <td><span class="badge ${paid?'paid':'pending'}">${paid?'Paid':'Pending'}</span></td>
         <td><button class="del-btn" data-del="${e.id}" title="Delete">✕</button></td></tr>`;
     }).join('');
@@ -626,6 +730,12 @@ function renderDashboard(){
     <div class="stat rust"><div class="label">Pending Bills</div><div class="val">${pending.length}</div></div>
     <div class="stat rust"><div class="label">Amount Outstanding</div><div class="val">${fmtMoney(pendingAmt)}</div></div>
     <div class="stat green"><div class="label">Total Billed</div><div class="val">${fmtMoney(totalAmt)}</div></div>`;
+
+  const emailRows = pending.filter(e=>e.emailDate).map(e=>({...e, days: daysBetween(e.emailDate, todayStr())})).sort((a,b)=>b.days-a.days);
+  el('emailTrackBody').innerHTML = emailRows.length ? emailRows.map(e=>`<tr><td class="name-cell">${escapeHtml(e.party)}</td><td>${escapeHtml(e.billNumber||'—')}</td><td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.emailDate)}</td><td style="font-weight:700;color:${e.days>15?'var(--rust)':'var(--ink)'}">${e.days}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Koi pending bill email-tracked nahi hai</td></tr>';
+
+  const hcRows = pending.filter(e=>e.hardcopyDate).map(e=>({...e, days: daysBetween(e.hardcopyDate, todayStr())})).sort((a,b)=>b.days-a.days);
+  el('hcTrackBody').innerHTML = hcRows.length ? hcRows.map(e=>`<tr><td class="name-cell">${escapeHtml(e.party)}</td><td>${escapeHtml(e.billNumber||'—')}</td><td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.hardcopyDate)}</td><td style="font-weight:700;color:${e.days>15?'var(--rust)':'var(--ink)'}">${e.days}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Koi pending bill hard-copy-tracked nahi hai</td></tr>';
 
   const byParty={};
   pending.forEach(e=>{ byParty[e.party]=byParty[e.party]||{count:0,amt:0}; byParty[e.party].count++; byParty[e.party].amt+=Number(e.amount)||0; });
