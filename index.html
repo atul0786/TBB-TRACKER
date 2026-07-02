@@ -119,7 +119,7 @@
       <div class="card-head">
         <div>
           <h2 id="formTitle">Add Bill Entry</h2>
-          <div class="desc">Party choose karte hi delivery mode Party Master se auto-fill ho jayega.</div>
+          <div class="desc">Party choose karte hi delivery mode Party Master se auto-fill ho jayega. Excel me date hamesha DD-MM-YYYY format me likhein.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <label class="file-label">⬆ Import Excel<input type="file" id="importFile" accept=".xlsx,.xls"></label>
@@ -511,10 +511,42 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
   if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const wb = XLSX.utils.book_new();
   const headers = ["Party Name","Bill Period","Bill Date","Bill Submission Date","Delivery Mode","Actual Submission Date (POD)","Amount","Payment Date"];
-  const ws = XLSX.utils.aoa_to_sheet([headers, ["ABC Logistics","June","2026-06-05","2026-06-07","POD","2026-06-15","45000",""]]);
-  ws['!cols'] = headers.map(()=>({wch:22}));
+  const sample = ["ABC Logistics","June","05-06-2026","07-06-2026","POD","15-06-2026","45000",""];
+  const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+  ws['!cols'] = headers.map(()=>({wch:26}));
+
+  // Date columns: Bill Date(2), Bill Submission Date(3), Actual/POD Date(5), Payment Date(7)
+  // Force TEXT format ('@') on these columns for many rows ahead, so Excel NEVER
+  // auto-converts a typed "DD-MM-YYYY" value into its own locale date (which was
+  // turning e.g. 30-06-2026 into 6-30-2026 on US-locale Excel installs).
+  const dateColIdx = [2,3,5,7];
+  const totalRows = 300;
+  for(let r=1; r<=totalRows; r++){
+    dateColIdx.forEach(c=>{
+      const ref = XLSX.utils.encode_cell({r, c});
+      if(!ws[ref]) ws[ref] = { t:'s', v:'' };
+      ws[ref].t = 's';
+      ws[ref].z = '@';
+    });
+  }
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  range.e.r = Math.max(range.e.r, totalRows);
+  ws['!ref'] = XLSX.utils.encode_range(range);
+
+  const wsInfo = XLSX.utils.aoa_to_sheet([
+    ["TBB Bulk Upload — Zaroori Instructions"],
+    [""],
+    ["1. Date format HAMESHA DD-MM-YYYY rakhein — jaise: 05-06-2026 (5 June 2026)."],
+    ["2. 'Bill Upload' sheet ke date columns TEXT format me hain — jo DD-MM-YYYY type karenge, wahi save hoga, Excel use apne aap kisi aur format me nahi badlega."],
+    ["3. Delivery Mode column me sirf ye 3 me se ek likhein: Mail / Physical / POD"],
+    ["4. Payment Date khali chhod sakte hain agar abhi payment nahi hui."],
+    ["5. Party Name wahi likhein jo Party Master tab me save hai, taaki Delivery Mode auto-match ho sake."]
+  ]);
+  wsInfo['!cols'] = [{wch:95}];
+
+  XLSX.utils.book_append_sheet(wb, wsInfo, "Instructions");
   XLSX.utils.book_append_sheet(wb, ws, "Bill Upload");
-  XLSX.writeFile(wb, "TBB_Bulk_Upload_Template.xlsx");
+  XLSX.writeFile(wb, "TBB_Bulk_Upload_Template.xlsx", { cellStyles:true });
 });
 
 el('exportBtn').addEventListener('click', ()=>{
