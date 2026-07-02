@@ -246,9 +246,38 @@ const SUPABASE_URL = "https://hrhqygzzmjeqlbvhlagl.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_FZSnQb2hSWOYd8vAnRexzQ_jMCAFnoN";
 // ===================================================================
 
+// ---- TABS: attach FIRST, before anything that could throw, so basic
+// navigation always works even if a library below fails to load ----
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    if(t.dataset.tab==='dashboard' && typeof renderDashboard==='function') renderDashboard();
+  });
+});
+
+const hasSupabaseLib = typeof window.supabase !== 'undefined';
+const hasXlsxLib = typeof XLSX !== 'undefined';
 const isConfigured = !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
-if(!isConfigured){ document.getElementById('setupWarning').style.display='block'; }
-const supabase = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+let supabase = null;
+if(!hasSupabaseLib){
+  document.getElementById('setupWarning').style.display='block';
+  document.getElementById('setupWarning').innerHTML = '⚠️ Supabase library load nahi hui (internet slow hai ya browser/ad-blocker/Brave Shields ne cdn.jsdelivr.net ko block kar diya). Page reload karein, ya Brave Shields icon (address bar me) se "Shields Down" is site ke liye kar dein.';
+} else if(!isConfigured){
+  document.getElementById('setupWarning').style.display='block';
+} else {
+  try{
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }catch(e){
+    document.getElementById('setupWarning').style.display='block';
+    document.getElementById('setupWarning').innerHTML = '⚠️ Supabase connect nahi ho paya: '+(e.message||e);
+  }
+}
+if(!hasXlsxLib){
+  console.warn('XLSX library load nahi hui — Import/Export/Template buttons kaam nahi karenge jab tak library load na ho.');
+}
 
 let entries = [];
 let parties = [];
@@ -289,7 +318,7 @@ function normMode(v){
 
 // ---------------- DATA LOAD ----------------
 async function loadAll(){
-  if(!isConfigured){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Setup pehle poora karein.'; return; }
+  if(!isConfigured || !supabase){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Setup pehle poora karein.'; return; }
   el('entryBody').innerHTML = '<tr><td colspan="10" class="loading">Loading entries…</td></tr>';
   try{
     const [{ data:bills, error:e1 }, { data:pm, error:e2 }] = await Promise.all([
@@ -376,7 +405,7 @@ function fillForm(entry){
   window.scrollTo({top:0, behavior:'smooth'});
 }
 el('saveBtn').addEventListener('click', async ()=>{
-  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); return; }
+  if(!isConfigured || !supabase){ showErr('Pehle Supabase setup poora karein.'); return; }
   const party = el('f-party').value.trim();
   if(!party){ showErr('Party name is required.'); return; }
   const entry = { party, billPeriod: el('f-period').value.trim(), amount: el('f-amount').value.trim(),
@@ -400,7 +429,7 @@ function resetPartyForm(){
   editingPartyId=null; el('partyCancelBtn').style.display='none';
 }
 el('partySaveBtn').addEventListener('click', async ()=>{
-  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); return; }
+  if(!isConfigured || !supabase){ showErr('Pehle Supabase setup poora karein.'); return; }
   const name = el('p-name').value.trim();
   if(!name){ showErr('Party name is required.'); return; }
   try{
@@ -440,21 +469,12 @@ function renderParties(){
   });
 }
 
-// ---------------- TABS ----------------
-document.querySelectorAll('.tab').forEach(t=>{
-  t.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active'); el('panel-'+t.dataset.tab).classList.add('active');
-    if(t.dataset.tab==='dashboard') renderDashboard();
-  });
-});
-
 // ---------------- BULK IMPORT (Excel) ----------------
 el('importFile').addEventListener('change', async (ev)=>{
   const file = ev.target.files[0];
   if(!file) return;
-  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); ev.target.value=''; return; }
+  if(!isConfigured || !supabase){ showErr('Pehle Supabase setup poora karein.'); ev.target.value=''; return; }
+  if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); ev.target.value=''; return; }
   try{
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type:'array', cellDates:false });
@@ -487,6 +507,7 @@ el('importFile').addEventListener('change', async (ev)=>{
 });
 
 el('downloadTemplateBtn').addEventListener('click', ()=>{
+  if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const wb = XLSX.utils.book_new();
   const headers = ["Party Name","Bill Period","Bill Date","Bill Submission Date","Delivery Mode","Actual Submission Date (POD)","Amount","Payment Date"];
   const ws = XLSX.utils.aoa_to_sheet([headers, ["ABC Logistics","June","2026-06-05","2026-06-07","POD","2026-06-15","45000",""]]);
@@ -496,6 +517,7 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
 });
 
 el('exportBtn').addEventListener('click', ()=>{
+  if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const rows = getFilteredEntries().map(e=>({
     "Party Name": e.party, "Bill Period": e.billPeriod, "Bill Date": e.billDate,
     "Bill Submission Date": e.submitDate, "Delivery Mode": e.mode,
