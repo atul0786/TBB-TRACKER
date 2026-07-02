@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TBB Recovery Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#0F172A; --paper:#F8F7F4; --card:#FFFFFF;
+    --rust:#C2410C; --rust-soft:#FDE8DC; --green:#15803D; --green-soft:#DCFCE7;
+    --amber:#B45309; --amber-soft:#FEF3C7; --slate:#64748B; --line:#E2E1DB;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  .app{max-width:1220px;margin:0 auto;padding:20px 16px 60px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand .mark{width:10px;height:10px;background:var(--rust);border-radius:2px;display:inline-block;}
+  .brand h1{font-size:19px;margin:0;letter-spacing:-0.01em;}
+  .brand span.sub{color:var(--slate);font-size:12.5px;}
+  .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px;flex-wrap:wrap;}
+  .tab{border:none;background:transparent;padding:8px 14px;border-radius:7px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;white-space:nowrap;}
+  .tab.active{background:var(--ink);color:#fff;}
+  .panel{display:none;} .panel.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:16px;}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .card h2{font-size:14px;margin:0 0 3px;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);}
+  .card .desc{font-size:12.5px;color:var(--slate);margin:0 0 14px;}
+  .rule{height:2px;background:linear-gradient(90deg,var(--rust),transparent);width:36px;margin-bottom:12px;}
+  .form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  @media(max-width:820px){.form-grid{grid-template-columns:repeat(2,1fr);}}
+  .field{display:flex;flex-direction:column;gap:4px;position:relative;}
+  .field label{font-size:11px;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+  .field input,.field select{border:1px solid var(--line);border-radius:7px;padding:8px 9px;font-size:13px;font-family:var(--mono);background:#fff;color:var(--ink);}
+  .field input:focus,.field select:focus{outline:2px solid var(--ink);outline-offset:1px;}
+  .field.wide{grid-column:span 2;}
+  .field input[type=text]{font-family:var(--sans);}
+  .hint-pill{position:absolute;right:8px;top:26px;font-size:9.5px;background:var(--green-soft);color:var(--green);padding:1px 7px;border-radius:20px;font-weight:700;display:none;}
+  .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+  .btn-primary{background:var(--ink);color:#fff;} .btn-primary:hover{background:#1e293b;}
+  .btn-ghost{background:transparent;color:var(--slate);border:1px solid var(--line);}
+  .btn-ghost:hover{color:var(--ink);border-color:var(--ink);}
+  .btn-sm{padding:6px 12px;font-size:12px;}
+  .btn-row{margin-top:12px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--slate);padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  td{padding:9px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);white-space:nowrap;}
+  td.name-cell{font-family:var(--sans);font-weight:600;white-space:normal;min-width:110px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;font-family:var(--sans);}
+  .badge.paid{background:var(--green-soft);color:var(--green);}
+  .badge.pending{background:var(--rust-soft);color:var(--rust);}
+  .badge.mode{background:#EEF2FF;color:#4338CA;}
+  .del-btn{background:none;border:none;color:var(--slate);cursor:pointer;font-size:15px;padding:0 4px;}
+  .del-btn:hover{color:var(--rust);}
+  .table-scroll{overflow-x:auto;}
+  .empty{padding:30px 10px;text-align:center;color:var(--slate);font-size:13px;}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+  @media(max-width:820px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat .label{font-size:11px;color:var(--slate);text-transform:uppercase;letter-spacing:.03em;font-weight:600;}
+  .stat .val{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:4px;}
+  .stat.rust .val{color:var(--rust);} .stat.green .val{color:var(--green);}
+  .bucket-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .bucket{flex:1;min-width:100px;border-radius:9px;padding:10px 12px;}
+  .bucket .n{font-family:var(--mono);font-size:18px;font-weight:700;}
+  .bucket .l{font-size:11px;margin-top:2px;}
+  .b0{background:var(--green-soft);color:var(--green);} .b1{background:var(--amber-soft);color:var(--amber);}
+  .b2{background:var(--rust-soft);color:var(--rust);} .b3{background:#1e1a17;color:#fff;}
+  .loading{padding:40px;text-align:center;color:var(--slate);font-size:13px;}
+  .err{background:var(--rust-soft);color:var(--rust);border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:12px;}
+  .ok{background:var(--green-soft);color:var(--green);border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:12px;}
+  .footer-note{font-size:11px;color:var(--slate);margin-top:20px;text-align:center;}
+  .shared-note{font-size:11.5px;color:var(--slate);background:#fff;border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin-bottom:16px;}
+  .setup-warning{background:#1e1a17;color:#fff;padding:14px 18px;border-radius:10px;font-size:13px;margin-bottom:16px;line-height:1.6;}
+  .setup-warning code{background:rgba(255,255,255,.12);padding:1px 5px;border-radius:4px;}
+  .filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .filter-row input,.filter-row select{border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:var(--sans);}
+  .search-input{flex:1;min-width:160px;}
+  .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:8px;max-height:160px;overflow-y:auto;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.08);display:none;}
+  .autocomplete-list div{padding:7px 10px;font-size:12.5px;cursor:pointer;font-family:var(--sans);}
+  .autocomplete-list div:hover{background:var(--paper);}
+  input[type=file]{display:none;}
+  .file-label{border:1px dashed var(--line);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--slate);}
+  .file-label:hover{border-color:var(--ink);color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark"></span>
+      <h1>TBB Recovery Tracker</h1>
+      <span class="sub">Bill-to-payment lifecycle</span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="entries">Entries</button>
+      <button class="tab" data-tab="parties">Party Master</button>
+      <button class="tab" data-tab="dashboard">Dashboard</button>
+    </div>
+  </div>
+
+  <div id="setupWarning" class="setup-warning" style="display:none;">
+    ⚠️ Setup baaki hai: is file ke <code>&lt;script&gt;</code> section me sabse upar
+    <code>SUPABASE_URL</code> aur <code>SUPABASE_ANON_KEY</code> apni Supabase project ki daalein.
+    (README.md me pura tarika likha hai.)
+  </div>
+
+  <div class="shared-note">🔗 Ye data Supabase (PostgreSQL) me save hota hai — link jisके paas bhi hai, wo live data dekh/edit kar sakta hai, page band-chalu karne se data nahi jaata.</div>
+
+  <div id="errBox"></div>
+
+  <!-- ============ ENTRIES ============ -->
+  <div class="panel active" id="panel-entries">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2 id="formTitle">Add Bill Entry</h2>
+          <div class="desc">Party choose karte hi delivery mode Party Master se auto-fill ho jayega.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <label class="file-label">⬆ Import Excel<input type="file" id="importFile" accept=".xlsx,.xls"></label>
+          <button class="btn btn-ghost btn-sm" id="downloadTemplateBtn">Download Template</button>
+          <button class="btn btn-ghost btn-sm" id="exportBtn">Export to Excel</button>
+        </div>
+      </div>
+      <div class="rule"></div>
+      <div class="form-grid">
+        <div class="field wide">
+          <label>Party Name</label>
+          <input type="text" id="f-party" placeholder="e.g. ABC Logistics" autocomplete="off">
+          <span class="hint-pill" id="modeHintPill">auto-filled</span>
+          <div class="autocomplete-list" id="partyAutocomplete"></div>
+        </div>
+        <div class="field"><label>Bill Period</label><input type="text" id="f-period" placeholder="June"></div>
+        <div class="field"><label>Amount (₹)</label><input type="text" id="f-amount" placeholder="0"></div>
+        <div class="field"><label>Bill Date</label><input type="date" id="f-billdate"></div>
+        <div class="field"><label>Bill Submission Date</label><input type="date" id="f-submitdate"></div>
+        <div class="field"><label>Delivery Mode</label>
+          <select id="f-mode">
+            <option value="Mail">Mail only</option>
+            <option value="Physical">Physical bill</option>
+            <option value="POD">POD required</option>
+          </select>
+        </div>
+        <div class="field"><label>Actual Submission (POD)</label><input type="date" id="f-actualdate"></div>
+        <div class="field"><label>Payment Date</label><input type="date" id="f-paydate"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="cancelEditBtn" style="display:none;">Cancel</button>
+        <button class="btn btn-primary" id="saveBtn">Save Entry</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>All Bills</h2>
+      <div class="desc">Click any row to edit. Left edge color shows how overdue a pending bill is.</div>
+      <div class="filter-row">
+        <input type="text" class="search-input" id="searchBox" placeholder="Party se search karein…">
+        <select id="statusFilter">
+          <option value="">All Status</option>
+          <option value="pending">Pending Only</option>
+          <option value="paid">Paid Only</option>
+        </select>
+        <select id="periodFilter"><option value="">All Periods</option></select>
+      </div>
+      <div class="table-scroll">
+        <table id="entryTable">
+          <thead><tr><th>Party</th><th>Period</th><th>Bill Date</th><th>Submitted</th><th>Mode</th><th>POD/Actual</th><th>Amount</th><th>Payment Date</th><th>Status</th><th></th></tr></thead>
+          <tbody id="entryBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty" style="display:none;">No bills yet — add your first entry above.</div>
+    </div>
+  </div>
+
+  <!-- ============ PARTY MASTER ============ -->
+  <div class="panel" id="panel-parties">
+    <div class="card">
+      <h2>Add / Update Party</h2>
+      <div class="desc">Har party ka standard delivery-mode preference yahan ek baar map karein — bill add karte waqt apne aap use ho jayega.</div>
+      <div class="rule"></div>
+      <div class="form-grid">
+        <div class="field wide"><label>Party Name</label><input type="text" id="p-name" placeholder="e.g. ABC Logistics"></div>
+        <div class="field"><label>Default Delivery Mode</label>
+          <select id="p-mode"><option value="Mail">Mail only</option><option value="Physical">Physical bill</option><option value="POD">POD required</option></select>
+        </div>
+        <div class="field wide"><label>Notes</label><input type="text" id="p-notes" placeholder="e.g. always needs POD copy attached"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="partyCancelBtn" style="display:none;">Cancel</button>
+        <button class="btn btn-primary" id="partySaveBtn">Save Party</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Party List</h2>
+      <div class="desc">Ye list bill-entry me party choose karte waqt suggestion aur auto-fill ke liye use hoti hai.</div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Party</th><th>Default Mode</th><th>Notes</th><th></th></tr></thead><tbody id="partyBody"></tbody></table>
+      </div>
+      <div id="partyEmpty" class="empty" style="display:none;">Koi party map nahi hui — upar se add karein.</div>
+    </div>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <div class="panel" id="panel-dashboard">
+    <div class="stat-row" id="statRow"></div>
+    <div class="card">
+      <h2>Pending Payments by Party</h2>
+      <div class="desc">Parties who haven't paid yet, and how much is outstanding.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Pending</th><th>Amount Outstanding</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Month-wise Bill Report</h2>
+      <div class="desc">Total bills raised and their value, by bill period.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Period</th><th>Bills Count</th><th>Total Amount</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Lag Analysis</h2>
+      <div class="desc">Gap between Bill Date and Actual (POD) Submission Date — lower is better.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Period</th><th>Bill Date</th><th>Actual Submission</th><th>Lag (days)</th></tr></thead><tbody id="lagBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Aging Summary</h2>
+      <div class="desc">Days pending, counted from Submission (or POD) Date to today.</div>
+      <div class="rule"></div>
+      <div class="bucket-row" id="agingBuckets"></div>
+      <div class="table-scroll" style="margin-top:14px;"><table><thead><tr><th>Party</th><th>Period</th><th>Since</th><th>Days Pending</th><th>Amount</th></tr></thead><tbody id="agingBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="footer-note">PostgreSQL (Supabase) database · No manual reports needed — everything above updates as you add entries</div>
+</div>
+
+<script>
+// ===================================================================
+// YAHAN APNI SUPABASE DETAILS DAALEIN (README.md me tarika likha hai)
+// ===================================================================
+const SUPABASE_URL = "https://supabase.com/dashboard/project/hrhqygzzmjeqlbvhlagl/settings/api-keys";
+const SUPABASE_ANON_KEY = "sb_publishable_FZSnQb2hSWOYd8vAnRexzQ_jMCAFnoN";
+// ===================================================================
+
+const isConfigured = !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
+if(!isConfigured){ document.getElementById('setupWarning').style.display='block'; }
+const supabase = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+let entries = [];
+let parties = [];
+let editingId = null;
+let editingPartyId = null;
+const el = id => document.getElementById(id);
+const errBox = el('errBox');
+
+function showErr(msg){ errBox.innerHTML = '<div class="err">'+msg+'</div>'; setTimeout(()=>{errBox.innerHTML='';}, 5000); }
+function showOk(msg){ errBox.innerHTML = '<div class="ok">'+msg+'</div>'; setTimeout(()=>{errBox.innerHTML='';}, 4000); }
+function fmtDate(d){ return d || '—'; }
+function daysBetween(a,b){ if(!a || !b) return null; return Math.round((new Date(b)-new Date(a))/86400000); }
+function fmtMoney(n){ n=Number(n)||0; return '₹'+n.toLocaleString('en-IN'); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// normalize excel/date-ish values to YYYY-MM-DD
+function normDate(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v === 'number'){ // excel serial date
+    const d = XLSX.SSF.parse_date_code(v);
+    if(!d) return '';
+    return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m1) return `${m1[1]}-${m1[2].padStart(2,'0')}-${m1[3].padStart(2,'0')}`;
+  const m2 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  return s;
+}
+function normMode(v){
+  const s = (v||'').toString().trim().toLowerCase();
+  if(s.startsWith('pod')) return 'POD';
+  if(s.startsWith('phys')) return 'Physical';
+  return 'Mail';
+}
+
+// ---------------- DATA LOAD ----------------
+async function loadAll(){
+  if(!isConfigured){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Setup pehle poora karein.'; return; }
+  el('entryBody').innerHTML = '<tr><td colspan="10" class="loading">Loading entries…</td></tr>';
+  try{
+    const [{ data:bills, error:e1 }, { data:pm, error:e2 }] = await Promise.all([
+      supabase.from('bills').select('*').order('bill_date', { ascending:false }),
+      supabase.from('party_master').select('*').order('party', { ascending:true })
+    ]);
+    if(e1) throw e1;
+    if(e2) throw e2;
+    entries = bills.map(r=>({ id:r.id, party:r.party, billPeriod:r.bill_period, amount:r.amount,
+      billDate:r.bill_date, submitDate:r.submit_date, mode:r.mode, actualDate:r.actual_date, payDate:r.pay_date }));
+    parties = pm.map(r=>({ id:r.id, party:r.party, mode:r.default_mode, notes:r.notes }));
+  }catch(e){
+    showErr('Data load nahi hua — Supabase URL/Key check karein. ('+ (e.message||e) +')');
+    entries = []; parties = [];
+  }
+  populatePeriodFilter();
+  render();
+  renderParties();
+}
+
+function populatePeriodFilter(){
+  const sel = el('periodFilter');
+  const cur = sel.value;
+  const periods = [...new Set(entries.map(e=>e.billPeriod).filter(Boolean))];
+  sel.innerHTML = '<option value="">All Periods</option>' + periods.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+  sel.value = cur;
+}
+
+// ---------------- PARTY AUTOCOMPLETE + AUTO-FILL ----------------
+const partyInput = el('f-party');
+const autoList = el('partyAutocomplete');
+partyInput.addEventListener('input', ()=>{
+  const q = partyInput.value.trim().toLowerCase();
+  el('modeHintPill').style.display='none';
+  if(!q){ autoList.style.display='none'; return; }
+  const matches = parties.filter(p=>p.party.toLowerCase().includes(q)).slice(0,8);
+  if(matches.length===0){ autoList.style.display='none'; return; }
+  autoList.innerHTML = matches.map(p=>`<div data-party="${escapeHtml(p.party)}">${escapeHtml(p.party)} <span style="color:var(--slate);font-size:11px;">— ${p.mode||'Mail'}</span></div>`).join('');
+  autoList.style.display='block';
+  autoList.querySelectorAll('div').forEach(d=>{
+    d.addEventListener('click', ()=>{
+      applyPartySelection(d.dataset.party);
+      autoList.style.display='none';
+    });
+  });
+});
+document.addEventListener('click',(ev)=>{ if(!ev.target.closest('.field.wide')) autoList.style.display='none'; });
+
+function applyPartySelection(name){
+  partyInput.value = name;
+  const match = parties.find(p=>p.party.toLowerCase()===name.toLowerCase());
+  if(match && match.mode){
+    el('f-mode').value = match.mode;
+    el('modeHintPill').style.display='inline-block';
+  }
+}
+partyInput.addEventListener('blur', ()=>{ setTimeout(()=>{ applyPartySelection(partyInput.value.trim()); }, 150); });
+
+// ---------------- BILL CRUD ----------------
+async function saveEntry(entry){
+  const row = { party: entry.party, bill_period: entry.billPeriod, amount: entry.amount || null,
+    bill_date: entry.billDate || null, submit_date: entry.submitDate || null, mode: entry.mode,
+    actual_date: entry.actualDate || null, pay_date: entry.payDate || null };
+  if(editingId){ const { error } = await supabase.from('bills').update(row).eq('id', editingId); if(error) throw error; }
+  else { const { error } = await supabase.from('bills').insert(row); if(error) throw error; }
+}
+async function deleteEntry(id){
+  if(!confirm('Delete this entry?')) return;
+  try{ const { error } = await supabase.from('bills').delete().eq('id', id); if(error) throw error; await loadAll(); }
+  catch(e){ showErr('Delete failed: '+(e.message||e)); }
+}
+function resetForm(){
+  ['f-party','f-period','f-amount','f-billdate','f-submitdate','f-actualdate','f-paydate'].forEach(id=>el(id).value='');
+  el('f-mode').value='Mail'; editingId=null; el('modeHintPill').style.display='none';
+  el('formTitle').textContent='Add Bill Entry'; el('cancelEditBtn').style.display='none';
+}
+function fillForm(entry){
+  el('f-party').value=entry.party||''; el('f-period').value=entry.billPeriod||'';
+  el('f-amount').value=entry.amount||''; el('f-billdate').value=entry.billDate||'';
+  el('f-submitdate').value=entry.submitDate||''; el('f-mode').value=entry.mode||'Mail';
+  el('f-actualdate').value=entry.actualDate||''; el('f-paydate').value=entry.payDate||'';
+  editingId=entry.id; el('formTitle').textContent='Edit Bill Entry';
+  el('cancelEditBtn').style.display='inline-block';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+el('saveBtn').addEventListener('click', async ()=>{
+  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); return; }
+  const party = el('f-party').value.trim();
+  if(!party){ showErr('Party name is required.'); return; }
+  const entry = { party, billPeriod: el('f-period').value.trim(), amount: el('f-amount').value.trim(),
+    billDate: el('f-billdate').value, submitDate: el('f-submitdate').value, mode: el('f-mode').value,
+    actualDate: el('f-actualdate').value, payDate: el('f-paydate').value };
+  el('saveBtn').textContent='Saving…'; el('saveBtn').disabled=true;
+  try{ await saveEntry(entry); resetForm(); await loadAll(); }
+  catch(e){ showErr('Save failed: '+(e.message||e)); }
+  el('saveBtn').textContent='Save Entry'; el('saveBtn').disabled=false;
+});
+el('cancelEditBtn').addEventListener('click', resetForm);
+
+// ---------------- PARTY MASTER CRUD ----------------
+async function savePartyRow(p){
+  const row = { party: p.party, default_mode: p.mode, notes: p.notes };
+  if(editingPartyId){ const { error } = await supabase.from('party_master').update(row).eq('id', editingPartyId); if(error) throw error; }
+  else { const { error } = await supabase.from('party_master').upsert(row, { onConflict:'party' }); if(error) throw error; }
+}
+function resetPartyForm(){
+  el('p-name').value=''; el('p-mode').value='Mail'; el('p-notes').value='';
+  editingPartyId=null; el('partyCancelBtn').style.display='none';
+}
+el('partySaveBtn').addEventListener('click', async ()=>{
+  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); return; }
+  const name = el('p-name').value.trim();
+  if(!name){ showErr('Party name is required.'); return; }
+  try{
+    await savePartyRow({ party:name, mode: el('p-mode').value, notes: el('p-notes').value.trim() });
+    resetPartyForm(); await loadAll(); showOk('Party map ho gayi.');
+  }catch(e){ showErr('Save failed: '+(e.message||e)); }
+});
+el('partyCancelBtn').addEventListener('click', resetPartyForm);
+
+async function deleteParty(id){
+  if(!confirm('Remove this party mapping?')) return;
+  try{ const { error } = await supabase.from('party_master').delete().eq('id', id); if(error) throw error; await loadAll(); }
+  catch(e){ showErr('Delete failed: '+(e.message||e)); }
+}
+
+function renderParties(){
+  const tbody = el('partyBody');
+  if(parties.length===0){ tbody.innerHTML=''; el('partyEmpty').style.display='block'; return; }
+  el('partyEmpty').style.display='none';
+  tbody.innerHTML = parties.map(p=>`
+    <tr data-id="${p.id}" style="cursor:pointer;">
+      <td class="name-cell">${escapeHtml(p.party)}</td>
+      <td><span class="badge mode">${p.mode||'Mail'}</span></td>
+      <td class="name-cell" style="font-weight:400;color:var(--slate);">${escapeHtml(p.notes||'—')}</td>
+      <td><button class="del-btn" data-pdel="${p.id}">✕</button></td>
+    </tr>`).join('');
+  tbody.querySelectorAll('tr').forEach(row=>{
+    row.addEventListener('click',(ev)=>{
+      if(ev.target.closest('.del-btn')) return;
+      const p = parties.find(x=>x.id===row.dataset.id);
+      if(p){ el('p-name').value=p.party; el('p-mode').value=p.mode||'Mail'; el('p-notes').value=p.notes||'';
+        editingPartyId=p.id; el('partyCancelBtn').style.display='inline-block'; window.scrollTo({top:0,behavior:'smooth'}); }
+    });
+  });
+  tbody.querySelectorAll('[data-pdel]').forEach(btn=>{
+    btn.addEventListener('click',(ev)=>{ ev.stopPropagation(); deleteParty(btn.dataset.pdel); });
+  });
+}
+
+// ---------------- TABS ----------------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); el('panel-'+t.dataset.tab).classList.add('active');
+    if(t.dataset.tab==='dashboard') renderDashboard();
+  });
+});
+
+// ---------------- BULK IMPORT (Excel) ----------------
+el('importFile').addEventListener('change', async (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+  if(!isConfigured){ showErr('Pehle Supabase setup poora karein.'); ev.target.value=''; return; }
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array', cellDates:false });
+    const sheetName = wb.SheetNames.find(n=>n.toLowerCase().includes('bill')) || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:'' });
+    const toInsert = [];
+    for(const r of rows){
+      const party = (r['Party Name']||r['party']||'').toString().trim();
+      if(!party) continue;
+      toInsert.push({
+        party,
+        bill_period: (r['Bill Period']||'').toString().trim(),
+        bill_date: normDate(r['Bill Date']),
+        submit_date: normDate(r['Bill Submission Date']),
+        mode: normMode(r['Delivery Mode']),
+        actual_date: normDate(r['Actual Submission Date (POD)'] || r['Actual Submission Date']),
+        amount: (r['Amount']||'').toString().replace(/[^\d.]/g,'') || null,
+        pay_date: normDate(r['Payment Date'])
+      });
+    }
+    if(toInsert.length===0){ showErr('Excel me koi valid row nahi mili. Template format check karein.'); ev.target.value=''; return; }
+    const { error } = await supabase.from('bills').insert(toInsert);
+    if(error) throw error;
+    showOk(toInsert.length + ' bills successfully import ho gaye.');
+    await loadAll();
+  }catch(e){
+    showErr('Import failed: '+(e.message||e));
+  }
+  ev.target.value='';
+});
+
+el('downloadTemplateBtn').addEventListener('click', ()=>{
+  const wb = XLSX.utils.book_new();
+  const headers = ["Party Name","Bill Period","Bill Date","Bill Submission Date","Delivery Mode","Actual Submission Date (POD)","Amount","Payment Date"];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ["ABC Logistics","June","2026-06-05","2026-06-07","POD","2026-06-15","45000",""]]);
+  ws['!cols'] = headers.map(()=>({wch:22}));
+  XLSX.utils.book_append_sheet(wb, ws, "Bill Upload");
+  XLSX.writeFile(wb, "TBB_Bulk_Upload_Template.xlsx");
+});
+
+el('exportBtn').addEventListener('click', ()=>{
+  const rows = getFilteredEntries().map(e=>({
+    "Party Name": e.party, "Bill Period": e.billPeriod, "Bill Date": e.billDate,
+    "Bill Submission Date": e.submitDate, "Delivery Mode": e.mode,
+    "Actual Submission Date (POD)": e.actualDate, "Amount": e.amount,
+    "Payment Date": e.payDate, "Status": e.payDate ? "Paid" : "Pending"
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Bills");
+  XLSX.writeFile(wb, "TBB_Bills_Export.xlsx");
+});
+
+// ---------------- FILTERS ----------------
+el('searchBox').addEventListener('input', render);
+el('statusFilter').addEventListener('change', render);
+el('periodFilter').addEventListener('change', render);
+
+function getFilteredEntries(){
+  const q = el('searchBox').value.trim().toLowerCase();
+  const status = el('statusFilter').value;
+  const period = el('periodFilter').value;
+  return entries.filter(e=>{
+    if(q && !e.party.toLowerCase().includes(q)) return false;
+    if(status==='pending' && e.payDate) return false;
+    if(status==='paid' && !e.payDate) return false;
+    if(period && e.billPeriod!==period) return false;
+    return true;
+  });
+}
+
+// ---------------- RENDER ----------------
+function agingBucket(days){ if(days<=30) return 0; if(days<=60) return 1; if(days<=90) return 2; return 3; }
+const bucketClass=['b0','b1','b2','b3'];
+const bucketLabel=['0–30 days','31–60 days','61–90 days','90+ days'];
+
+function render(){
+  const tbody = el('entryBody');
+  const list = getFilteredEntries();
+  if(list.length===0){
+    tbody.innerHTML=''; if(isConfigured){ el('emptyState').style.display='block'; el('emptyState').textContent = entries.length===0 ? 'No bills yet — add your first entry above.' : 'Is filter se koi bill nahi mila.'; }
+  } else {
+    el('emptyState').style.display='none';
+    tbody.innerHTML = list.map(e=>{
+      const paid = !!e.payDate;
+      const ref = e.actualDate || e.submitDate;
+      const daysPending = paid ? 0 : (ref ? daysBetween(ref, todayStr()) : 0);
+      const bIdx = paid ? -1 : agingBucket(daysPending||0);
+      const edgeColor = paid ? 'transparent' : ['#15803D','#B45309','#C2410C','#1e1a17'][bIdx];
+      return `<tr class="entry-row" style="cursor:pointer" data-id="${e.id}">
+        <td class="name-cell" style="border-left:4px solid ${edgeColor}">${escapeHtml(e.party)}</td>
+        <td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td><td>${fmtDate(e.submitDate)}</td>
+        <td><span class="badge mode">${e.mode||'—'}</span></td><td>${fmtDate(e.actualDate)}</td><td>${fmtMoney(e.amount)}</td><td>${fmtDate(e.payDate)}</td>
+        <td><span class="badge ${paid?'paid':'pending'}">${paid?'Paid':'Pending'}</span></td>
+        <td><button class="del-btn" data-del="${e.id}" title="Delete">✕</button></td></tr>`;
+    }).join('');
+    tbody.querySelectorAll('tr.entry-row').forEach(row=>{
+      row.addEventListener('click',(ev)=>{ if(ev.target.closest('.del-btn')) return; const entry=entries.find(x=>x.id===row.dataset.id); if(entry) fillForm(entry); });
+    });
+    tbody.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click',(ev)=>{ ev.stopPropagation(); deleteEntry(btn.dataset.del); });
+    });
+  }
+  renderDashboard();
+}
+
+function renderDashboard(){
+  const total = entries.length;
+  const pending = entries.filter(e=>!e.payDate);
+  const pendingAmt = pending.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const totalAmt = entries.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  el('statRow').innerHTML = `
+    <div class="stat"><div class="label">Total Bills</div><div class="val">${total}</div></div>
+    <div class="stat rust"><div class="label">Pending Bills</div><div class="val">${pending.length}</div></div>
+    <div class="stat rust"><div class="label">Amount Outstanding</div><div class="val">${fmtMoney(pendingAmt)}</div></div>
+    <div class="stat green"><div class="label">Total Billed</div><div class="val">${fmtMoney(totalAmt)}</div></div>`;
+
+  const byParty={};
+  pending.forEach(e=>{ byParty[e.party]=byParty[e.party]||{count:0,amt:0}; byParty[e.party].count++; byParty[e.party].amt+=Number(e.amount)||0; });
+  const partyRows = Object.entries(byParty).sort((a,b)=>b[1].amt-a[1].amt);
+  el('pendingBody').innerHTML = partyRows.length ? partyRows.map(([p,v])=>`<tr><td class="name-cell">${escapeHtml(p)}</td><td>${v.count}</td><td>${fmtMoney(v.amt)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No pending payments 🎉</td></tr>';
+
+  const byMonth={};
+  entries.forEach(e=>{ const m=e.billPeriod||'—'; byMonth[m]=byMonth[m]||{count:0,amt:0,paid:0,pending:0}; byMonth[m].count++; byMonth[m].amt+=Number(e.amount)||0; if(e.payDate) byMonth[m].paid++; else byMonth[m].pending++; });
+  el('monthBody').innerHTML = Object.entries(byMonth).length ? Object.entries(byMonth).map(([m,v])=>`<tr><td class="name-cell">${escapeHtml(m)}</td><td>${v.count}</td><td>${fmtMoney(v.amt)}</td><td>${v.paid}</td><td>${v.pending}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No bills yet</td></tr>';
+
+  const lagRows = entries.filter(e=>e.billDate&&e.actualDate).map(e=>({...e,lag:daysBetween(e.billDate,e.actualDate)})).sort((a,b)=>b.lag-a.lag);
+  el('lagBody').innerHTML = lagRows.length ? lagRows.map(e=>`<tr><td class="name-cell">${escapeHtml(e.party)}</td><td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td><td>${fmtDate(e.actualDate)}</td><td style="font-weight:700;color:${e.lag>15?'var(--rust)':'var(--ink)'}">${e.lag}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No POD/actual submission dates recorded yet</td></tr>';
+
+  const agingRows = pending.filter(e=>e.submitDate||e.actualDate).map(e=>{ const ref=e.actualDate||e.submitDate; const d=daysBetween(ref,todayStr()); return {...e,since:ref,days:d,bucket:agingBucket(d)}; }).sort((a,b)=>b.days-a.days);
+  const bucketCounts=[0,0,0,0], bucketAmts=[0,0,0,0];
+  agingRows.forEach(r=>{ bucketCounts[r.bucket]++; bucketAmts[r.bucket]+=Number(r.amount)||0; });
+  el('agingBuckets').innerHTML = [0,1,2,3].map(i=>`<div class="bucket ${bucketClass[i]}"><div class="n">${bucketCounts[i]}</div><div class="l">${bucketLabel[i]} · ${fmtMoney(bucketAmts[i])}</div></div>`).join('');
+  el('agingBody').innerHTML = agingRows.length ? agingRows.map(r=>`<tr><td class="name-cell">${escapeHtml(r.party)}</td><td>${escapeHtml(r.billPeriod||'—')}</td><td>${fmtDate(r.since)}</td><td style="font-weight:700;color:${['var(--green)','var(--amber)','var(--rust)','#1e1a17'][r.bucket]}">${r.days}</td><td>${fmtMoney(r.amount)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No pending bills with submission dates</td></tr>';
+}
+
+loadAll();
+</script>
+</body>
+</html>
