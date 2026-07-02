@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TBB Recovery Tracker</title>
-<script src="https://cdn.jsdelivr.net/npm/@sb/sb-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -242,7 +242,7 @@
 // ===================================================================
 // YAHAN APNI SUPABASE DETAILS DAALEIN (README.md me tarika likha hai)
 // ===================================================================
-const SUPABASE_URL = "https://hrhqygzzmjeqlbvhlagl.sb.co";
+const SUPABASE_URL = "https://hrhqygzzmjeqlbvhlagl.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_FZSnQb2hSWOYd8vAnRexzQ_jMCAFnoN";
 // ===================================================================
 
@@ -264,7 +264,7 @@ const isConfigured = !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.incl
 let sb = null;
 if(!hasSupabaseLib){
   document.getElementById('setupWarning').style.display='block';
-  document.getElementById('setupWarning').innerHTML = '⚠️ Supabase library load nahi hui (internet slow hai ya browser/ad-blocker/Brave Shields ne cdn.jsdelivr.net ko block kar diya). Page reload karein, ya Brave Shields icon (address bar me) se "Shields Down" is site ke liye kar dein.';
+  document.getElementById('setupWarning').innerHTML = '⚠️ Supabase library load nahi hui (internet slow hai ya browser/ad-blocker/Brave Shields ne CDN script ko block kar diya). Page reload karein, ya Brave Shields icon (address bar me) se "Shields Down" is site ke liye kar dein.';
 } else if(!isConfigured){
   document.getElementById('setupWarning').style.display='block';
 } else {
