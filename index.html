@@ -226,7 +226,10 @@
   .bucket .n{font-family:var(--mono);font-size:18px;font-weight:800;}
   .bucket .l{font-size:11px;margin-top:2px;}
   .b0{background:var(--green-soft);color:var(--green);} .b1{background:var(--amber-soft);color:var(--amber);}
-  .b2{background:var(--rust-soft);color:var(--rust);} .b3{background:#1e1a17;color:#fff;}
+  .b2{background:var(--rust-soft);color:var(--rust);} .b3{background:#F4CBA9;color:var(--rust-dark);}
+  .b4{background:#1e1a17;color:#fff;}
+  .aging-group-head{padding:8px 14px;border-radius:var(--radius-sm);font-weight:800;font-size:13px;margin:16px 0 8px;}
+  .aging-group-head:first-child{margin-top:2px;}
 
   /* =========================================================
      10. NOTICES / MISC
@@ -634,6 +637,18 @@
       <div class="bucket-row" id="agingBuckets"></div>
       <div class="table-scroll" style="margin-top:14px;"><table><thead><tr><th>Party</th><th>Period</th><th>Since</th><th>Days Pending</th><th>Amount</th></tr></thead><tbody id="agingBody"></tbody></table></div>
     </div>
+    <div class="card">
+      <h2>Party-wise Month Report</h2>
+      <div class="desc">Har party ka outstanding balance, Bill Period (month) ke hisab se — sirf pending bills ke aadhar par. Columns data ke hisab se apne aap ban jaate hain.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead id="newReportHead"></thead><tbody id="newReportBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Update Aging Report</h2>
+      <div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar.</div>
+      <div class="rule"></div>
+      <div id="agingGrouped"></div>
+    </div>
   </div>
 
   <!-- ============ PAYMENT TURNAROUND ============ -->
@@ -823,11 +838,19 @@ async function loadAll(){
 function populatePeriodFilter(){
   // Populate compact checkbox list inside the period dropdown
   const container = el('periodOptions');
-  const prevChecked = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]:checked')).map(cb=>cb.value);
+  const existingCbs = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]'));
+  const prevChecked = new Set(existingCbs.filter(cb=>cb.checked).map(cb=>cb.value));
+  const prevKnown = new Set(existingCbs.map(cb=>cb.value));
   const periods = [...new Set(entries.map(e=>e.billPeriod).filter(Boolean))];
+  // BUGFIX: pehle koi BILKUL NAYA period (jaise abhi-abhi add kiya gaya bill ka
+  // period) is dropdown me automatically UNCHECKED aa jaata tha, jisse period-filter
+  // apne aap "active" ho jaata aur naya bill Entries list + Dashboard se gayab ho
+  // jaata — jab tak user khud us period ko select na kare. Ab sirf pehle-se-maujood
+  // periods ka "unchecked" state yaad rakha jaata hai; bilkul naya period hamesha
+  // checked (visible) hi aayega.
   container.innerHTML = periods.map(p=>{
     const safe = escapeHtml(p);
-    const checked = prevChecked.length ? (prevChecked.includes(p) ? 'checked' : '') : 'checked';
+    const checked = (!prevKnown.has(p) || prevChecked.has(p)) ? 'checked' : '';
     return `<label><input type="checkbox" value="${safe}" ${checked}> ${safe}</label>`;
   }).join('');
   // wire checkbox change -> re-render
@@ -906,7 +929,13 @@ function renderLedger(){
   // BUGFIX: Cancelled/Disputed/Rejected bills recovery cycle se bahar hain, isliye
   // inka pending amount "Pending Balance" / running balance me nahi jodna chahiye.
   const pendingAmt = withCalc.reduce((s,e)=>s+(isClosedStatus(e)?0:e.pending),0);
-  const totalPaid = totalBilled - pendingAmt;
+  // BUGFIX: pehle "Total Paid" = Total Billed − Pending Balance nikala jaata tha.
+  // Cancelled/Disputed/Rejected bills Pending Balance se exclude hote hain, isliye
+  // agar aisa bill kabhi paid hi nahi hua tha, to bhi uska poora amount "Total Paid"
+  // me galat se add ho jaata tha. Ab Total Paid seedha (Net − Actual Pending) se
+  // nikalte hain — ye sirf wahi amount hai jo waaqai receive hua hai, status se
+  // independent aur hamesha sahi.
+  const totalPaid = withCalc.reduce((s,e)=>s+(e.net-e.pending),0);
   el('ledgerStatRow').innerHTML = `
     <div class="stat"><div class="icon">📄</div><div class="label">Total Bills</div><div class="val">${rows.length}</div></div>
     <div class="stat green"><div class="icon">🧾</div><div class="label">Total Billed</div><div class="val">${fmtMoney(totalBilled)}</div></div>
@@ -1441,9 +1470,9 @@ function getFilteredEntries(){
 }
 
 // ---------------- RENDER ----------------
-function agingBucket(days){ if(days<=30) return 0; if(days<=60) return 1; if(days<=90) return 2; return 3; }
-const bucketClass=['b0','b1','b2','b3'];
-const bucketLabel=['0–30 days','31–60 days','61–90 days','90+ days'];
+function agingBucket(days){ if(days<=15) return 0; if(days<=30) return 1; if(days<=45) return 2; if(days<=60) return 3; return 4; }
+const bucketClass=['b0','b1','b2','b3','b4'];
+const bucketLabel=['0–15 days','15–30 days','30–45 days','45–60 days','60+ days'];
 
 function render(){
   const tbody = el('entryBody');
@@ -1458,7 +1487,7 @@ function render(){
       const ref = e.actualDate || e.submitDate;
       const daysPending = paid ? 0 : (ref ? daysBetween(ref, todayStr()) : 0);
       const bIdx = paid ? -1 : agingBucket(daysPending||0);
-      const edgeColor = paid ? 'transparent' : ['#15803D','#B45309','#C2410C','#1e1a17'][bIdx];
+      const edgeColor = paid ? 'transparent' : ['#15803D','#B45309','#C2410C','#9A3412','#1e1a17'][bIdx];
       const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
       const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
       const status = computeStatusAuto(e);
@@ -1551,10 +1580,81 @@ function renderDashboard(){
   el('lagBody').innerHTML = lagRows.length ? lagRows.map(e=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(e.party)}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Bill Date">${fmtDate(e.billDate)}</td><td data-label="Actual Submission">${fmtDate(e.actualDate)}</td><td data-label="Lag (days)" style="font-weight:700;color:${e.lag>15?'var(--rust)':'var(--ink)'}">${e.lag}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No POD/actual submission dates recorded yet</td></tr>';
 
   const agingRows = pending.filter(e=>e.submitDate||e.actualDate).map(e=>{ const ref=e.actualDate||e.submitDate; const d=daysBetween(ref,todayStr()); return {...e,since:ref,days:d,bucket:agingBucket(d)}; }).sort((a,b)=>b.days-a.days);
-  const bucketCounts=[0,0,0,0], bucketAmts=[0,0,0,0];
+  const bucketCounts=[0,0,0,0,0], bucketAmts=[0,0,0,0,0];
   agingRows.forEach(r=>{ bucketCounts[r.bucket]++; bucketAmts[r.bucket]+=r.pend; });
-  el('agingBuckets').innerHTML = [0,1,2,3].map(i=>`<div class="bucket ${bucketClass[i]}"><div class="n">${bucketCounts[i]}</div><div class="l">${bucketLabel[i]} · ${fmtMoney(bucketAmts[i])}</div></div>`).join('');
-  el('agingBody').innerHTML = agingRows.length ? agingRows.map(r=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td><td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td><td data-label="Since">${fmtDate(r.since)}</td><td data-label="Days Pending" style="font-weight:700;color:${['var(--green)','var(--amber)','var(--rust)','#1e1a17'][r.bucket]}">${r.days}</td><td data-label="Amount">${fmtMoney(r.pend)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No pending bills with submission dates</td></tr>';
+  el('agingBuckets').innerHTML = [0,1,2,3,4].map(i=>`<div class="bucket ${bucketClass[i]}"><div class="n">${bucketCounts[i]}</div><div class="l">${bucketLabel[i]} · ${fmtMoney(bucketAmts[i])}</div></div>`).join('');
+  el('agingBody').innerHTML = agingRows.length ? agingRows.map(r=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td><td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td><td data-label="Since">${fmtDate(r.since)}</td><td data-label="Days Pending" style="font-weight:700;color:${['var(--green)','var(--amber)','var(--rust)','#9A3412','#1e1a17'][r.bucket]}">${r.days}</td><td data-label="Amount">${fmtMoney(r.pend)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No pending bills with submission dates</td></tr>';
+
+  renderNewReport(pending, agingRows);
+}
+
+// ---------------- PARTY-WISE MONTH REPORT + GROUPED AGING (dashboard ke andar hi) ----------------
+// Dono reports sirf PENDING bills (jo abhi tak wasool nahi hue) ke pend (outstanding) amount par
+// based hain — total billed amount par nahi — jaisa maanga gaya tha ("bill pendings ke aadhar par balance").
+function renderNewReport(pending, agingRows){
+  // ---- Party-wise Month pivot (outstanding balance) ----
+  const periodPartyMap = {};   // period -> {party: pendingAmt}
+  const partyTotals = {};      // party -> total pending
+  const periodFirstDate = {};  // period -> earliest bill date, chronological sort ke liye
+  const partiesSet = new Set();
+  pending.forEach(e=>{
+    const period = e.billPeriod || '—';
+    const party = e.party;
+    partiesSet.add(party);
+    periodPartyMap[period] = periodPartyMap[period] || {};
+    periodPartyMap[period][party] = (periodPartyMap[period][party]||0) + e.pend;
+    partyTotals[party] = (partyTotals[party]||0) + e.pend;
+    if(e.billDate){ if(!periodFirstDate[period] || e.billDate < periodFirstDate[period]) periodFirstDate[period] = e.billDate; }
+  });
+  const periods = Object.keys(periodPartyMap).sort((a,b)=>{
+    const da = periodFirstDate[a], db = periodFirstDate[b];
+    if(da && db) return da < db ? -1 : (da>db?1:0);
+    if(da) return -1; if(db) return 1;
+    return a.localeCompare(b);
+  });
+  const partyList = Array.from(partiesSet).sort((a,b)=> (partyTotals[b]||0)-(partyTotals[a]||0));
+
+  const headEl = el('newReportHead'), bodyEl = el('newReportBody');
+  if(headEl && bodyEl){
+    if(partyList.length===0 || periods.length===0){
+      headEl.innerHTML = '<tr><th>Party Name</th><th>Balance</th></tr>';
+      bodyEl.innerHTML = '<tr><td colspan="2" class="empty">Koi pending balance nahi — sab clear hai 🎉</td></tr>';
+    } else {
+      headEl.innerHTML = '<tr><th>Party Name</th>' + periods.map(p=>`<th>${escapeHtml(p)}</th>`).join('') + '<th>Total</th></tr>';
+      const periodTotals = {}; periods.forEach(p=>periodTotals[p]=0);
+      let grandTotal = 0;
+      const rowsHtml = partyList.map(party=>{
+        let rowTotal = 0;
+        const cells = periods.map(p=>{
+          const amt = (periodPartyMap[p] && periodPartyMap[p][party]) || 0;
+          rowTotal += amt; periodTotals[p] += amt;
+          return `<td data-label="${escapeHtml(p)}">${amt ? fmtMoney(amt) : '—'}</td>`;
+        }).join('');
+        grandTotal += rowTotal;
+        return `<tr><td class="name-cell" data-label="Party Name">${escapeHtml(party)}</td>${cells}<td data-label="Total" style="font-weight:800;color:var(--rust);">${fmtMoney(rowTotal)}</td></tr>`;
+      }).join('');
+      const totalCells = periods.map(p=>`<td data-label="${escapeHtml(p)}">${fmtMoney(periodTotals[p])}</td>`).join('');
+      bodyEl.innerHTML = rowsHtml + `<tr style="font-weight:800;background:var(--slate-soft);"><td class="name-cell" data-label="Party Name">TOTAL</td>${totalCells}<td data-label="Total" style="color:var(--rust);">${fmtMoney(grandTotal)}</td></tr>`;
+    }
+  }
+
+  // ---- Aging Report grouped by 15-day bucket, sirf pending bills ----
+  const groupEl = el('agingGrouped');
+  if(groupEl){
+    const groups = [0,1,2,3,4].map(i=>({idx:i, rows: agingRows.filter(r=>r.bucket===i)}));
+    const active = groups.filter(g=>g.rows.length>0);
+    if(active.length===0){
+      groupEl.innerHTML = '<div class="empty" style="padding:20px;text-align:center;">No pending bills with submission dates</div>';
+    } else {
+      groupEl.innerHTML = active.map(g=>{
+        const amt = g.rows.reduce((s,r)=>s+r.pend,0);
+        return `<div class="aging-group-head ${bucketClass[g.idx]}">${bucketLabel[g.idx]} · ${g.rows.length} bill${g.rows.length>1?'s':''} · ${fmtMoney(amt)}</div>
+        <div class="table-scroll" style="margin-bottom:14px;"><table><thead><tr><th>Party Name</th><th>Amount</th><th>Days Pending</th></tr></thead><tbody>
+        ${g.rows.map(r=>`<tr><td class="name-cell" data-label="Party Name">${escapeHtml(r.party)}</td><td data-label="Amount">${fmtMoney(r.pend)}</td><td data-label="Days Pending" style="font-weight:700;">${r.days}</td></tr>`).join('')}
+        </tbody></table></div>`;
+      }).join('');
+    }
+  }
 }
 
 // ---------------- PAYMENT TURNAROUND ANALYSIS ----------------
