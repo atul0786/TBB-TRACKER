@@ -389,6 +389,7 @@
 
   <!-- ============ DASHBOARD ============ -->
   <div class="panel" id="panel-dashboard">
+    <div id="dashboardFilterNote"></div>
     <div class="stat-row" id="statRow"></div>
     <div class="card">
       <h2>Email Sent Tracking</h2>
@@ -512,18 +513,23 @@ function normDate(v){
   return s;
 }
 // ---------------- STATUS AUTO-CALCULATION ----------------
-function calcNetAmount(amount, gst, tds){ return (Number(amount)||0) + (Number(gst)||0) - (Number(tds)||0); }
+function calcNetAmount(amount, gst, tds){ return (toNumOrNull(amount)||0) + (toNumOrNull(gst)||0) - (toNumOrNull(tds)||0); }
 function calcPendingAmount(netAmount, paymentAmount, payDate){
   // Agar Payment Date bhari hai lekin Payment Amount khali hai, to full-paid maana jaata hai (backward compatible).
-  const paid = (paymentAmount!==null && paymentAmount!=='' && paymentAmount!==undefined) ? Number(paymentAmount) : (payDate ? netAmount : 0);
+  const numPaid = toNumOrNull(paymentAmount);
+  const paid = (numPaid!==null) ? numPaid : (payDate ? netAmount : 0);
   return netAmount - paid;
 }
 function statusKey(label){ return label.toLowerCase().replace(/[^a-z]/g,''); }
+// "Closed" statuses ka matlab hai bill ab active recovery cycle me nahi hai —
+// isliye inhe Pending/Outstanding/Aging calculations me kabhi count nahi karna chahiye.
+function isClosedStatus(e){ return ['Cancelled','Disputed','Rejected'].includes(e.statusOverride); }
 function computeStatusAuto(entry){
   if(entry.statusOverride){ return entry.statusOverride; }
   const net = (entry.netAmount!==undefined && entry.netAmount!==null) ? Number(entry.netAmount) : calcNetAmount(entry.amount, entry.gstAmount, entry.tds);
   const pending = (entry.pendingAmount!==undefined && entry.pendingAmount!==null) ? Number(entry.pendingAmount) : calcPendingAmount(net, entry.paymentAmount, entry.payDate);
-  const hasSomePayment = (entry.paymentAmount && Number(entry.paymentAmount)>0) || !!entry.payDate;
+  const paymentAmtNum = toNumOrNull(entry.paymentAmount);
+  const hasSomePayment = (paymentAmtNum!==null && paymentAmtNum>0) || !!entry.payDate;
   if(hasSomePayment && pending<=0) return 'Paid';
   if(hasSomePayment && pending>0) return 'Partially Paid';
   if(entry.submitDate) return 'Payment Pending';
@@ -544,6 +550,17 @@ function normMode(v){
   if(hasHard) return 'Hard Copy Only';
   if(hasEmail) return 'Email Only';
   return 'Email Only';
+}
+
+const UNKNOWN_BRANCH_KEY = '__unknown_branch__';
+function getBranchKey(p){
+  const raw = (p.branch || p.city || p.zone || p.state || p.code || '').toString().trim();
+  return raw || UNKNOWN_BRANCH_KEY;
+}
+
+function getBranchLabel(p){
+  const raw = (p.branch || p.city || p.zone || p.state || p.code || '').toString().trim();
+  return raw || 'Unknown Branch';
 }
 
 // ---------------- DATA LOAD ----------------
@@ -596,41 +613,75 @@ function populatePeriodFilter(){
 function populateBranchFilter(){
   const sel = el('branchFilter');
   const ledgerSel = el('ledgerBranchSelect');
-  const branches = [...new Set(parties.map(p=>p.branch).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  sel.innerHTML = '<option value="">All Branches</option>' + branches.map(b=>`<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
-  if(ledgerSel) ledgerSel.innerHTML = '<option value="">— All Branches —</option>' + branches.map(b=>`<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+  // BUGFIX: pehle har loadAll() ke baad selection "All Branches" par reset ho jaati thi.
+  // Ab purani selection yaad rakhte hain aur agar wo abhi bhi valid hai to use restore karte hain.
+  const prevBranch = sel ? sel.value : '';
+  const prevLedgerBranch = ledgerSel ? ledgerSel.value : '';
+  const partyMap = new Map(parties.map(p=>[p.party, p]));
+  const branchSet = new Set(parties.map(p=>getBranchKey(p)));
+  const hasUnmappedEntries = entries.some(e=>{ const p = partyMap.get(e.party); return !p; });
+  if(hasUnmappedEntries) branchSet.add(UNKNOWN_BRANCH_KEY);
+  const branches = [...branchSet].sort((a,b)=>a.localeCompare(b));
+  if(branches.length===0){
+    sel.innerHTML = '<option value="">No party/branch data available</option>';
+    sel.disabled = true;
+    if(ledgerSel){ ledgerSel.innerHTML = '<option value="">No party/branch data available</option>'; ledgerSel.disabled=true; }
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">All Branches</option>' + branches.map(b=>{
+    const label = b===UNKNOWN_BRANCH_KEY ? 'Unknown Branch' : b;
+    return `<option value="${escapeHtml(b)}">${escapeHtml(label)}</option>`;
+  }).join('');
+  if(branches.includes(prevBranch)) sel.value = prevBranch;
+  if(ledgerSel){
+    ledgerSel.disabled = false;
+    ledgerSel.innerHTML = '<option value="">— All Branches —</option>' + branches.map(b=>{
+      const label = b===UNKNOWN_BRANCH_KEY ? 'Unknown Branch' : b;
+      return `<option value="${escapeHtml(b)}">${escapeHtml(label)}</option>`;
+    }).join('');
+    if(branches.includes(prevLedgerBranch)) ledgerSel.value = prevLedgerBranch;
+  }
 }
 
 // ---------------- PARTY LEDGER ----------------
 function populateLedgerPartySelect(){
-}
-function populateLedgerPartySelect(){
   const sel = el('ledgerPartySelect');
   const cur = sel.value;
   const branch = el('ledgerBranchSelect') ? el('ledgerBranchSelect').value : '';
+  const partyMap = new Map(parties.map(p=>[p.party, p]));
   let names = [...new Set([...entries.map(e=>e.party), ...parties.map(p=>p.party)].filter(Boolean))];
   if(branch){
-    const allowed = new Set(parties.filter(p=>p.branch===branch).map(p=>p.party));
+    const allowed = new Set(parties.filter(p=>getBranchKey(p)===branch).map(p=>p.party));
+    if(branch === UNKNOWN_BRANCH_KEY){
+      entries.forEach(e=>{ if(!partyMap.has(e.party)) allowed.add(e.party); });
+    }
     names = names.filter(n=>allowed.has(n));
   }
   names = names.sort((a,b)=>a.localeCompare(b));
   sel.innerHTML = '<option value="">— Party select karein —</option>' + names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
-  sel.value = cur;
+  if(!names.includes(cur)) sel.value = '';
+  else sel.value = cur;
 }
 el('ledgerPartySelect')?.addEventListener('change', renderLedger);
 el('ledgerBranchSelect')?.addEventListener('change', ()=>{ populateLedgerPartySelect(); renderLedger(); });
 function renderLedger(){
   const party = el('ledgerPartySelect').value;
+  const branch = el('ledgerBranchSelect') ? el('ledgerBranchSelect').value : '';
   if(!party){ el('ledgerEmpty').style.display='block'; el('ledgerContent').style.display='none'; return; }
   el('ledgerEmpty').style.display='none'; el('ledgerContent').style.display='block';
-  const rows = getFilteredEntries().filter(e=>e.party===party).sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
+  let rows = entries.filter(e=>e.party===party);
+  if(branch){ rows = rows.filter(e=>{ const p = parties.find(x=>x.party===e.party); return p ? getBranchKey(p)===branch : branch===UNKNOWN_BRANCH_KEY; }); }
+  rows = rows.sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
   const withCalc = rows.map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
     const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
     return {...e, net, pending};
   });
   const totalBilled = withCalc.reduce((s,e)=>s+e.net,0);
-  const pendingAmt = withCalc.reduce((s,e)=>s+e.pending,0);
+  // BUGFIX: Cancelled/Disputed/Rejected bills recovery cycle se bahar hain, isliye
+  // inka pending amount "Pending Balance" / running balance me nahi jodna chahiye.
+  const pendingAmt = withCalc.reduce((s,e)=>s+(isClosedStatus(e)?0:e.pending),0);
   const totalPaid = totalBilled - pendingAmt;
   el('ledgerStatRow').innerHTML = `
     <div class="stat"><div class="label">Total Bills</div><div class="val">${rows.length}</div></div>
@@ -639,7 +690,7 @@ function renderLedger(){
     <div class="stat rust"><div class="label">Pending Balance</div><div class="val">${fmtMoney(pendingAmt)}</div></div>`;
   let running = 0;
   el('ledgerBody').innerHTML = withCalc.length ? withCalc.map(e=>{
-    running += e.pending;
+    running += isClosedStatus(e) ? 0 : e.pending;
     const status = computeStatusAuto(e);
     return `<tr>
       <td class="name-cell">${escapeHtml(e.billNumber||'—')}</td><td>${escapeHtml(e.billPeriod||'—')}</td><td>${fmtDate(e.billDate)}</td>
@@ -689,13 +740,29 @@ function applyPartySelection(name){
 partyInput.addEventListener('blur', ()=>{ setTimeout(()=>{ applyPartySelection(partyInput.value.trim()); }, 150); });
 
 // ---------------- BILL CRUD ----------------
+// BUGFIX: Amount/GST/TDS/Payment Amount pehle raw string bhejte the — agar user
+// "45,000" ya "₹45000" type kare to Postgres numeric column insert fail ho jaata
+// tha ya galat value save ho jaati thi. Ye helper safely number nikalta hai.
+function toNumOrNull(v){
+  if(v===null || v===undefined || v==='') return null;
+  const cleaned = v.toString().replace(/[^\d.\-]/g,'');
+  if(cleaned==='' || cleaned==='-' ) return null;
+  const n = Number(cleaned);
+  return isNaN(n) ? null : n;
+}
 async function saveEntry(entry){
   // Payment Amount: agar Payment Date bhara hai aur amount khali hai, to full net-amount maan lein (backward compatible default).
   const netAmt = calcNetAmount(entry.amount, entry.gstAmount, entry.tds);
-  let paymentAmount = entry.paymentAmount!=='' && entry.paymentAmount!==undefined ? Number(entry.paymentAmount) : null;
-  if(entry.payDate && (paymentAmount===null || isNaN(paymentAmount))) paymentAmount = netAmt;
+  let paymentAmount = toNumOrNull(entry.paymentAmount);
+  // BUGFIX: agar user ne Payment Amount field me kuch aisa likha jo number me convert
+  // hi nahi ho sakta (jaise sirf letters), to chup-chaap NaN save karne ki bajaye
+  // saaf error dikhate hain.
+  if(entry.paymentAmount && entry.paymentAmount.toString().trim()!=='' && paymentAmount===null){
+    throw new Error('Payment Amount valid number hona chahiye (jaise 45000).');
+  }
+  if(entry.payDate && paymentAmount===null) paymentAmount = netAmt;
   const row = { party: entry.party, bill_number: entry.billNumber || null, invoice_number: entry.invoiceNumber || null,
-    bill_period: entry.billPeriod, amount: entry.amount || null, gst_amount: entry.gstAmount || 0, tds: entry.tds || 0,
+    bill_period: entry.billPeriod, amount: toNumOrNull(entry.amount), gst_amount: toNumOrNull(entry.gstAmount) || 0, tds: toNumOrNull(entry.tds) || 0,
     bill_date: entry.billDate || null, bill_uploaded_date: entry.uploadedDate || null,
     email_date: entry.emailDate || null, hardcopy_date: entry.hardcopyDate || null,
     submit_date: entry.submitDate || null, expected_payment_date: entry.expectedPayDate || null, mode: entry.mode,
@@ -821,7 +888,7 @@ el('importPartiesFromDbBtn').addEventListener('click', async ()=>{
   const btn = el('importPartiesFromDbBtn');
   btn.disabled = true; btn.textContent = 'Scanning…';
   try{
-    const { data: bills, error } = await sb.from('bills').select('party, mode, bill_period, bill_date, remarks').order('party', { ascending: true });
+    const { data: bills, error } = await sb.from('bills').select('party, mode, bill_period, bill_date').order('party', { ascending: true });
     if(error) throw error;
     const map = new Map();
     const existingMap = new Map(parties.map(p=>[String(p.party).trim().toLowerCase(), p]));
@@ -835,15 +902,13 @@ el('importPartiesFromDbBtn').addEventListener('click', async ()=>{
           mode: r.mode || 'Email Only',
           billCount: 0,
           lastPeriod: r.bill_period || null,
-          lastBillDate: r.bill_date || null,
-          remarks: []
+          lastBillDate: r.bill_date || null
         });
       }
       const entry = map.get(key);
       entry.billCount += 1;
       if(!entry.lastPeriod && r.bill_period) entry.lastPeriod = r.bill_period;
       if(!entry.lastBillDate && r.bill_date) entry.lastBillDate = r.bill_date;
-      if(r.remarks) entry.remarks.push(r.remarks);
     });
     const rows = Array.from(map.values()).map(info=>{
       const existing = existingMap.get(info.party.toLowerCase());
@@ -959,21 +1024,36 @@ el('importFile').addEventListener('change', async (ev)=>{
     const wb = XLSX.read(buf, { type:'array', cellDates:false });
     const sheetName = wb.SheetNames.find(n=>n.toLowerCase().includes('bill')) || wb.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:'' });
+    // BUGFIX: pehle `r['Amount']||r['Bill Amount']||''` istemal hota tha — agar Excel
+    // me value 0 ho, JS use "falsy" maan kar agle field/blank par chala jaata tha.
+    // Ye helper sirf undefined/null/'' ko hi "missing" maanta hai, 0 ko nahi.
+    const pick = (...vals)=>{ for(const v of vals){ if(v!==undefined && v!==null && v!=='') return v; } return ''; };
+    // BUGFIX: duplicate Bill Number dobara import hone se bill do baar na ban jaaye.
+    const existingBillNumbers = new Set(entries.map(e=>(e.billNumber||'').toString().trim().toLowerCase()).filter(Boolean));
+    const seenInThisFile = new Set();
     const toInsert = [];
+    let duplicateCount = 0;
     for(const r of rows){
-      const party = (r['Party Name']||r['party']||'').toString().trim();
+      const party = pick(r['Party Name'], r['party']).toString().trim();
       if(!party) continue;
-      const billAmount = (r['Amount']||r['Bill Amount']||'').toString().replace(/[^\d.]/g,'') || null;
-      const gstAmount = (r['GST Amount']||'').toString().replace(/[^\d.]/g,'') || 0;
-      const tds = (r['TDS']||'').toString().replace(/[^\d.]/g,'') || 0;
+      const billNumber = pick(r['Bill Number']).toString().trim();
+      const billNumberKey = billNumber.toLowerCase();
+      if(billNumber && (existingBillNumbers.has(billNumberKey) || seenInThisFile.has(billNumberKey))){
+        duplicateCount++;
+        continue; // skip duplicate bill, don't insert twice
+      }
+      if(billNumber) seenInThisFile.add(billNumberKey);
+      const billAmount = toNumOrNull(pick(r['Amount'], r['Bill Amount']));
+      const gstAmount = toNumOrNull(pick(r['GST Amount'])) ?? 0;
+      const tds = toNumOrNull(pick(r['TDS'])) ?? 0;
       const payDate = normDate(r['Payment Date']);
-      let paymentAmount = (r['Payment Amount']||'').toString().replace(/[^\d.]/g,'') || null;
-      if(payDate && !paymentAmount){ paymentAmount = calcNetAmount(billAmount, gstAmount, tds); }
+      let paymentAmount = toNumOrNull(pick(r['Payment Amount']));
+      if(payDate && paymentAmount===null){ paymentAmount = calcNetAmount(billAmount, gstAmount, tds); }
       toInsert.push({
         party,
-        bill_number: (r['Bill Number']||'').toString().trim() || null,
-        invoice_number: (r['Invoice Number']||'').toString().trim() || null,
-        bill_period: (r['Bill Period']||'').toString().trim(),
+        bill_number: billNumber || null,
+        invoice_number: pick(r['Invoice Number']).toString().trim() || null,
+        bill_period: pick(r['Bill Period']).toString().trim(),
         bill_date: normDate(r['Bill Date']),
         bill_uploaded_date: normDate(r['Bill Uploaded Date']),
         email_date: normDate(r['Email Sent Date']),
@@ -984,14 +1064,17 @@ el('importFile').addEventListener('change', async (ev)=>{
         actual_date: normDate(r['Actual Submission Date (POD)'] || r['Actual Submission Date']),
         amount: billAmount, gst_amount: gstAmount, tds: tds,
         pay_date: payDate, payment_amount: paymentAmount,
-        payment_mode: (r['Payment Mode']||'').toString().trim() || null,
-        remarks: (r['Remarks']||'').toString().trim() || null
+        payment_mode: pick(r['Payment Mode']).toString().trim() || null,
+        remarks: pick(r['Remarks']).toString().trim() || null
       });
     }
-    if(toInsert.length===0){ showErr('Excel me koi valid row nahi mili. Template format check karein.'); ev.target.value=''; return; }
+    if(toInsert.length===0){
+      showErr(duplicateCount>0 ? `Saari ${duplicateCount} row(s) duplicate Bill Number ki wajah se skip ho gayi.` : 'Excel me koi valid row nahi mili. Template format check karein.');
+      ev.target.value=''; return;
+    }
     const { error } = await sb.from('bills').insert(toInsert);
     if(error) throw error;
-    showOk(toInsert.length + ' bills successfully import ho gaye.');
+    showOk(toInsert.length + ' bills successfully import ho gaye.' + (duplicateCount>0 ? ` (${duplicateCount} duplicate Bill Number skip kiye gaye.)` : ''));
     await loadAll();
   }catch(e){
     showErr('Import failed: '+(e.message||e));
@@ -1070,6 +1153,7 @@ el('exportBtn').addEventListener('click', ()=>{
 // ---------------- FILTERS ----------------
 el('searchBox')?.addEventListener('input', render);
 el('statusFilter')?.addEventListener('change', render);
+el('branchFilter')?.addEventListener('change', render);
 // Period dropdown: toggle menu and wire checkbox selection handlers (guarded)
 const _periodBtn = el('periodBtn');
 if(_periodBtn){ _periodBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); const m = el('periodMenu'); if(m){ m.classList.toggle('show'); m.setAttribute('aria-hidden', String(!m.classList.contains('show'))); } }); }
@@ -1077,21 +1161,46 @@ document.addEventListener('click', ()=>{ const m=el('periodMenu'); if(m && m.cla
 const _periodAll = el('periodSelectAll'); if(_periodAll) _periodAll.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=true); render(); });
 const _periodClear = el('periodClear'); if(_periodClear) _periodClear.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=false); render(); });
 
+// Dashboard ke liye alag function — isse Search box aur Status filter (jo Entries
+// tab ke liye hote hain) dashboard ke totals ko chhupate/todte nahi. Sirf Branch aur
+// Period filter dashboard par bhi lागू hote hain, kyunki wo genuinely "scope" badalte hain.
+function getDashboardEntries(){
+  const branchSel = el('branchFilter') ? el('branchFilter').value : '';
+  const checked = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]:checked')).map(cb=>cb.value);
+  const allOpts = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).map(cb=>cb.value);
+  const periodFilterActive = allOpts.length>0 && checked.length < allOpts.length;
+  return entries.filter(e=>{
+    if(periodFilterActive && !checked.includes(e.billPeriod)) return false;
+    if(branchSel){
+      const p = parties.find(x=>x.party===e.party);
+      const br = p ? getBranchKey(p) : '';
+      if(br !== branchSel) return false;
+    }
+    return true;
+  });
+}
+
 function getFilteredEntries(){
   const q = el('searchBox').value.trim().toLowerCase();
   const status = el('statusFilter').value;
   const branchSel = el('branchFilter') ? el('branchFilter').value : '';
   const checked = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]:checked')).map(cb=>cb.value);
   const allOpts = Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).map(cb=>cb.value);
-  const periodFilterActive = checked.length>0 && checked.length < allOpts.length;
+  // BUGFIX: pehle "checked.length>0" condition ki wajah se sab checkbox uncheck (Clear)
+  // karne par bhi saare periods dikh jaate the. Ab agar list se kam periods checked
+  // hain (0 bhi ho sakta hai) to filter active maana jaayega.
+  const periodFilterActive = allOpts.length>0 && checked.length < allOpts.length;
   return entries.filter(e=>{
     if(q && !e.party.toLowerCase().includes(q)) return false;
-    if(status==='pending' && e.payDate) return false;
-    if(status==='paid' && !e.payDate) return false;
+    const statusVal = computeStatusAuto(e).toLowerCase();
+    // BUGFIX: Cancelled/Disputed/Rejected bills ko "pending" nahi maanna chahiye,
+    // chahe unka payment na aaya ho — wo active recovery cycle se bahar hain.
+    if(status==='pending' && (statusVal==='paid' || isClosedStatus(e))) return false;
+    if(status==='paid' && statusVal!=='paid') return false;
     if(periodFilterActive && !checked.includes(e.billPeriod)) return false;
     if(branchSel){
       const p = parties.find(x=>x.party===e.party);
-      const br = p ? p.branch || '' : '';
+      const br = p ? getBranchKey(p) : '';
       if(br !== branchSel) return false;
     }
     return true;
@@ -1154,16 +1263,21 @@ function render(){
 
 function renderDashboard(){
   // Har entry ke liye net amount aur pending amount ek baar calculate kar lete hain, poore dashboard me reuse hoga.
-  const base = getFilteredEntries();
+  const base = getDashboardEntries();
   const calc = base.map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
     const pend = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
     return {...e, net, pend};
   });
   const total = calc.length;
-  const pending = calc.filter(e=>e.pend>0);
+  // BUGFIX: Cancelled/Disputed/Rejected bills ko outstanding/pending me kabhi count nahi karna.
+  const pending = calc.filter(e=>e.pend>0 && !isClosedStatus(e));
   const pendingAmt = pending.reduce((s,e)=>s+e.pend,0);
   const totalAmt = calc.reduce((s,e)=>s+e.net,0);
+  const q = el('searchBox') ? el('searchBox').value.trim() : '';
+  const statusF = el('statusFilter') ? el('statusFilter').value : '';
+  const filterNote = (q || statusF) ? `<div class="ok" style="background:var(--amber-soft);color:var(--amber);margin-bottom:12px;">ℹ️ Dashboard hamesha poora data dikhata hai (Branch/Period filter ke alawa Search/Status filter yahan lagoo nahi hote), taaki outstanding figures kabhi galat na dikhein.</div>` : '';
+  if(el('dashboardFilterNote')) el('dashboardFilterNote').innerHTML = filterNote;
   el('statRow').innerHTML = `
     <div class="stat"><div class="label">Total Bills</div><div class="val">${total}</div></div>
     <div class="stat rust"><div class="label">Pending Bills</div><div class="val">${pending.length}</div></div>
@@ -1185,17 +1299,18 @@ function renderDashboard(){
   const byBranch = {};
   calc.forEach(e=>{
     const partyObj = parties.find(p=>p.party===e.party);
-    const branch = partyObj?.branch || '—';
-    byBranch[branch] = byBranch[branch] || {count:0, amt:0, pendingCount:0, pendingAmt:0};
-    byBranch[branch].count++;
-    byBranch[branch].amt += e.net;
-    if(e.pend>0){ byBranch[branch].pendingCount++; byBranch[branch].pendingAmt += e.pend; }
+    const branchKey = getBranchKey(partyObj || {});
+    const label = getBranchLabel(partyObj || {});
+    byBranch[label] = byBranch[label] || {count:0, amt:0, pendingCount:0, pendingAmt:0};
+    byBranch[label].count++;
+    byBranch[label].amt += e.net;
+    if(e.pend>0 && !isClosedStatus(e)){ byBranch[label].pendingCount++; byBranch[label].pendingAmt += e.pend; }
   });
   const branchRows = Object.entries(byBranch).sort((a,b)=> (b[1].pendingAmt||0) - (a[1].pendingAmt||0));
-  el('branchBody').innerHTML = branchRows.length ? branchRows.map(([br,v])=>`<tr><td class="name-cell">${escapeHtml(br)}</td><td>${v.count}</td><td>${fmtMoney(v.amt)}</td><td>${v.pendingCount}</td><td>${fmtMoney(v.pendingAmt)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No branch data</td></tr>';
+  el('branchBody').innerHTML = branchRows.length ? branchRows.map(([br,v])=>`<tr><td class="name-cell">${escapeHtml(br)}</td><td>${v.count}</td><td>${fmtMoney(v.amt)}</td><td>${v.pendingCount}</td><td>${fmtMoney(v.pendingAmt)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No branch/city/zone/state/code data available</td></tr>';
 
   const byMonth={};
-  calc.forEach(e=>{ const m=e.billPeriod||'—'; byMonth[m]=byMonth[m]||{count:0,amt:0,paid:0,pending:0}; byMonth[m].count++; byMonth[m].amt+=e.net; if(e.pend<=0) byMonth[m].paid++; else byMonth[m].pending++; });
+  calc.forEach(e=>{ const m=e.billPeriod||'—'; byMonth[m]=byMonth[m]||{count:0,amt:0,paid:0,pending:0}; byMonth[m].count++; byMonth[m].amt+=e.net; if(e.pend<=0) byMonth[m].paid++; else if(!isClosedStatus(e)) byMonth[m].pending++; });
   el('monthBody').innerHTML = Object.entries(byMonth).length ? Object.entries(byMonth).map(([m,v])=>`<tr><td class="name-cell">${escapeHtml(m)}</td><td>${v.count}</td><td>${fmtMoney(v.amt)}</td><td>${v.paid}</td><td>${v.pending}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No bills yet</td></tr>';
 
   const lagRows = calc.filter(e=>e.billDate&&e.actualDate).map(e=>({...e,lag:daysBetween(e.billDate,e.actualDate)})).sort((a,b)=>b.lag-a.lag);
