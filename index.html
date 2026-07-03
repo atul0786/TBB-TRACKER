@@ -329,6 +329,7 @@
       <button class="tab" data-tab="ledger">Party Ledger</button>
       <button class="tab" data-tab="parties">Party Master</button>
       <button class="tab" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="turnaround">Payment Turnaround</button>
     </div>
   </div>
 
@@ -635,6 +636,29 @@
     </div>
   </div>
 
+  <!-- ============ PAYMENT TURNAROUND ============ -->
+  <div class="panel" id="panel-turnaround">
+    <div class="card">
+      <h2>Payment Turnaround Analysis</h2>
+      <div class="desc">Bill deliver hone ke (Email / Hard Copy / POD bhejne ke) kitne din baad party ne payment kiya — sirf paid bills par based, jisse pata chale koi party kis document ke baad kitni der lagati hai.</div>
+      <div class="rule"></div>
+      <div id="turnaroundNote"></div>
+      <div class="stat-row" id="turnaroundStatRow"></div>
+    </div>
+    <div class="card">
+      <h2>Party-wise Average Turnaround</h2>
+      <div class="desc">Sabse zyada time lene wali party sabse upar — follow-up prioritize karne ke liye.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Paid</th><th>Avg after Email</th><th>Avg after Hard Copy</th><th>Avg after POD</th><th>Avg after Bill Date</th></tr></thead><tbody id="turnaroundPartyBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>Bill-wise Turnaround Detail</h2>
+      <div class="desc">Har paid bill ka exact turnaround — latest payment sabse upar.</div>
+      <div class="rule"></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Payment Date</th><th>Days after Email</th><th>Days after Hard Copy</th><th>Days after POD</th><th>Days after Bill Date</th></tr></thead><tbody id="turnaroundBody"></tbody></table></div>
+    </div>
+  </div>
+
   <div class="footer-note">PostgreSQL (Supabase) database · No manual reports needed — everything above updates as you add entries</div>
 </div>
 
@@ -655,6 +679,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     t.classList.add('active'); document.getElementById('panel-'+t.dataset.tab).classList.add('active');
     if(t.dataset.tab==='dashboard' && typeof renderDashboard==='function') renderDashboard();
     if(t.dataset.tab==='ledger' && typeof renderLedger==='function') renderLedger();
+    if(t.dataset.tab==='turnaround' && typeof renderTurnaround==='function') renderTurnaround();
   });
 });
 
@@ -1467,6 +1492,7 @@ function render(){
     `);
   }
   renderDashboard();
+  if(typeof renderTurnaround==='function') renderTurnaround();
 }
 
 function renderDashboard(){
@@ -1529,6 +1555,81 @@ function renderDashboard(){
   agingRows.forEach(r=>{ bucketCounts[r.bucket]++; bucketAmts[r.bucket]+=r.pend; });
   el('agingBuckets').innerHTML = [0,1,2,3].map(i=>`<div class="bucket ${bucketClass[i]}"><div class="n">${bucketCounts[i]}</div><div class="l">${bucketLabel[i]} · ${fmtMoney(bucketAmts[i])}</div></div>`).join('');
   el('agingBody').innerHTML = agingRows.length ? agingRows.map(r=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td><td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td><td data-label="Since">${fmtDate(r.since)}</td><td data-label="Days Pending" style="font-weight:700;color:${['var(--green)','var(--amber)','var(--rust)','#1e1a17'][r.bucket]}">${r.days}</td><td data-label="Amount">${fmtMoney(r.pend)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No pending bills with submission dates</td></tr>';
+}
+
+// ---------------- PAYMENT TURNAROUND ANALYSIS ----------------
+// Ye report sirf paid bills (jinka Payment Date bhara hua hai) par based hai, kyunki
+// turnaround = "kitne din baad payment aaya" — bina payment date ke ye nikal hi nahi sakta.
+function avgDays(list){ if(!list.length) return null; return list.reduce((a,b)=>a+b,0)/list.length; }
+function fmtAvgDays(v){ return v==null ? '—' : (Math.round(v*10)/10)+' din'; }
+
+function renderTurnaround(){
+  const paidBills = entries.filter(e=>e.payDate);
+
+  // Har bill ke liye 4 alag turnaround gap nikalte hain — jo bhi date bhari hai uska hi gap banega,
+  // baaki '—' rahega (taaki fake/wrong data na dikhe).
+  const rows = paidBills.map(e=>({
+    ...e,
+    dEmail: e.emailDate ? daysBetween(e.emailDate, e.payDate) : null,
+    dHard:  e.hardcopyDate ? daysBetween(e.hardcopyDate, e.payDate) : null,
+    dPod:   e.actualDate ? daysBetween(e.actualDate, e.payDate) : null,
+    dBill:  e.billDate ? daysBetween(e.billDate, e.payDate) : null,
+  }));
+
+  const note = paidBills.length===0
+    ? `<div class="ok" style="background:var(--amber-soft);color:var(--amber);margin-bottom:12px;">ℹ️ Abhi tak koi bill paid nahi hai, isliye turnaround calculate nahi ho sakta — jaise hi Payment Date bharoge, ye report apne aap ban jayegi.</div>`
+    : '';
+  el('turnaroundNote').innerHTML = note;
+
+  // ---- Top-level KPIs: overall averages across saari parties ----
+  el('turnaroundStatRow').innerHTML = `
+    <div class="stat"><div class="icon">📧</div><div class="label">Avg. Email → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dEmail!=null).map(r=>r.dEmail)))}</div></div>
+    <div class="stat"><div class="icon">📦</div><div class="label">Avg. Hard Copy → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dHard!=null).map(r=>r.dHard)))}</div></div>
+    <div class="stat"><div class="icon">🧾</div><div class="label">Avg. POD → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dPod!=null).map(r=>r.dPod)))}</div></div>
+    <div class="stat"><div class="icon">🗓️</div><div class="label">Avg. Bill Date → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dBill!=null).map(r=>r.dBill)))}</div></div>`;
+
+  // ---- Party-wise aggregate: kaun si party kis document ke baad kitni der lagati hai ----
+  const byParty = {};
+  rows.forEach(r=>{
+    byParty[r.party] = byParty[r.party] || {count:0, email:[], hard:[], pod:[], bill:[]};
+    const b = byParty[r.party];
+    b.count++;
+    if(r.dEmail!=null) b.email.push(r.dEmail);
+    if(r.dHard!=null) b.hard.push(r.dHard);
+    if(r.dPod!=null) b.pod.push(r.dPod);
+    if(r.dBill!=null) b.bill.push(r.dBill);
+  });
+  const partyRows = Object.entries(byParty).map(([p,v])=>({
+    party:p, count:v.count,
+    avgEmail: avgDays(v.email), avgHard: avgDays(v.hard), avgPod: avgDays(v.pod), avgBill: avgDays(v.bill)
+  }));
+  // Sabse zyada time lene wali party (Bill Date se, ya jo bhi available ho) sabse upar —
+  // taaki recovery follow-up me priority saaf dikhe.
+  partyRows.sort((a,b)=>{
+    const ref = x => x.avgBill!=null ? x.avgBill : (x.avgEmail!=null ? x.avgEmail : (x.avgHard!=null ? x.avgHard : (x.avgPod!=null ? x.avgPod : 0)));
+    return ref(b) - ref(a);
+  });
+  el('turnaroundPartyBody').innerHTML = partyRows.length ? partyRows.map(v=>`<tr>
+    <td class="name-cell" data-label="Party">${escapeHtml(v.party)}</td>
+    <td data-label="Bills Paid">${v.count}</td>
+    <td data-label="Avg after Email">${fmtAvgDays(v.avgEmail)}</td>
+    <td data-label="Avg after Hard Copy">${fmtAvgDays(v.avgHard)}</td>
+    <td data-label="Avg after POD">${fmtAvgDays(v.avgPod)}</td>
+    <td data-label="Avg after Bill Date" style="font-weight:700;">${fmtAvgDays(v.avgBill)}</td>
+  </tr>`).join('') : '<tr><td colspan="6" class="empty">Abhi tak koi paid bill nahi mila jisse turnaround nikal sakein</td></tr>';
+
+  // ---- Bill-wise detail: latest payment sabse upar ----
+  const detailRows = rows.slice().sort((a,b)=> (b.payDate||'').localeCompare(a.payDate||''));
+  el('turnaroundBody').innerHTML = detailRows.length ? detailRows.map(r=>`<tr>
+    <td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td>
+    <td data-label="Bill #">${escapeHtml(r.billNumber||'—')}</td>
+    <td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td>
+    <td data-label="Payment Date">${fmtDate(r.payDate)}</td>
+    <td data-label="Days after Email">${r.dEmail!=null?r.dEmail:'—'}</td>
+    <td data-label="Days after Hard Copy">${r.dHard!=null?r.dHard:'—'}</td>
+    <td data-label="Days after POD">${r.dPod!=null?r.dPod:'—'}</td>
+    <td data-label="Days after Bill Date" style="font-weight:700;">${r.dBill!=null?r.dBill:'—'}</td>
+  </tr>`).join('') : '<tr><td colspan="8" class="empty">Abhi tak koi paid bill nahi mila</td></tr>';
 }
 
 updateComputedFields();
