@@ -444,7 +444,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>All Bills</h2><div class="desc">Click any row to edit. Left edge color shows how overdue a pending bill is.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="allBillsBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="allBillsBody_card" aria-expanded="false" aria-controls="allBillsBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
       </div>
       <div id="allBillsBody_card" class="collapsible-body collapsed">
       <div class="filter-row">
@@ -582,7 +582,7 @@
           <div class="desc">Ye list bill-entry me party choose karte waqt suggestion aur auto-fill ke liye use hoti hai.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm collapse-toggle" data-target="partyListBody_card"><span class="label">Expand</span><span class="chev">▾</span></button>
+          <button class="btn btn-ghost btn-sm collapse-toggle" data-target="partyListBody_card" aria-expanded="false" aria-controls="partyListBody_card"><span class="label">Expand</span><span class="chev">▾</span></button>
           <button class="btn btn-ghost btn-sm" id="exportPartyBtn">Export to Excel</button>
         </div>
       </div>
@@ -600,7 +600,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Party Ledger</h2><div class="desc">Ek party choose karein — uske sabhi bills, payments aur running balance yahan dikhega.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="ledgerBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="ledgerBody_card" aria-expanded="false" aria-controls="ledgerBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
       </div>
       <div id="ledgerBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
@@ -633,7 +633,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Email Sent Tracking</h2><div class="desc">Bill email hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="emailTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportEmailTrackBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="emailTrackBody_card" aria-expanded="false" aria-controls="emailTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportEmailTrackBtn">Export to Excel</button></div>
       </div>
       <div id="emailTrackBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="emailTrackSummary"></div>
@@ -642,7 +642,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Hard Copy Dispatch Tracking</h2><div class="desc">Hard copy dispatch hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="hcTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportHcTrackBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="hcTrackBody_card" aria-expanded="false" aria-controls="hcTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportHcTrackBtn">Export to Excel</button></div>
       </div>
       <div id="hcTrackBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="hcTrackSummary"></div>
@@ -651,7 +651,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Pending Payments by Party</h2><div class="desc">Parties who haven't paid yet, and how much is outstanding.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="pendingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportPendingPartyBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="pendingBody_card" aria-expanded="false" aria-controls="pendingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportPendingPartyBtn">Export to Excel</button></div>
       </div>
       <div id="pendingBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="pendingPartySummary"></div>
@@ -660,7 +660,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Pending Payments by Branch</h2><div class="desc">Branch-wise summary of bills and pending amounts (aggregated from party data).</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="branchBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportBranchBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="branchBody_card" aria-expanded="false" aria-controls="branchBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportBranchBtn">Export to Excel</button></div>
       </div>
       <div id="branchBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="branchSummary"></div>
@@ -669,7 +669,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Month-wise Bill Report</h2><div class="desc">Total bills raised and their value, by bill period.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="monthBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportMonthBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="monthBody_card" aria-expanded="false" aria-controls="monthBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportMonthBtn">Export to Excel</button></div>
       </div>
       <div id="monthBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="monthSummary"></div>
@@ -678,7 +678,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Lag Analysis</h2><div class="desc">Gap between Bill Date and Actual (POD) Submission Date — lower is better.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="lagBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportLagBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="lagBody_card" aria-expanded="false" aria-controls="lagBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportLagBtn">Export to Excel</button></div>
       </div>
       <div id="lagBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="lagSummary"></div>
@@ -687,7 +687,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Aging Summary</h2><div class="desc">Days pending, counted from Submission (or POD) Date to today.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportAgingBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingBody_card" aria-expanded="false" aria-controls="agingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportAgingBtn">Export to Excel</button></div>
       </div>
       <div id="agingBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="agingSummaryStrip"></div>
@@ -697,7 +697,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Party-wise Month Report</h2><div class="desc">Har party ka outstanding balance, Bill Period (month) ke hisab se — sirf pending bills ke aadhar par. Columns data ke hisab se apne aap ban jaate hain.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="newReportBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportNewReportBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="newReportBody_card" aria-expanded="false" aria-controls="newReportBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportNewReportBtn">Export to Excel</button></div>
       </div>
       <div id="newReportBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="newReportSummary"></div>
@@ -706,7 +706,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Update Aging Report</h2><div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar. Har bucket apni khud ki Excel file export kar sakta hai.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingGroupedBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingGroupedBody_card" aria-expanded="false" aria-controls="agingGroupedBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
       </div>
       <div id="agingGroupedBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
@@ -728,7 +728,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Party-wise Average Turnaround</h2><div class="desc">Sabse zyada time lene wali party sabse upar — follow-up prioritize karne ke liye.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundPartyBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundPartyBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundPartyBody_card" aria-expanded="false" aria-controls="turnaroundPartyBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundPartyBtn">Export to Excel</button></div>
       </div>
       <div id="turnaroundPartyBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
@@ -739,7 +739,7 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Bill-wise Turnaround Detail</h2><div class="desc">Har paid bill ka exact turnaround — latest payment sabse upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundDetailBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundBody_card" aria-expanded="false" aria-controls="turnaroundBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundDetailBtn">Export to Excel</button></div>
       </div>
       <div id="turnaroundBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
@@ -775,6 +775,7 @@ function initCollapsibleCards(){
       const collapsedNow = body.classList.toggle('collapsed');
       btn.classList.toggle('is-open', !collapsedNow);
       btn.querySelector('.label').textContent = collapsedNow ? 'Expand' : 'Collapse';
+      btn.setAttribute('aria-expanded', String(!collapsedNow));
     });
   });
 }
