@@ -235,6 +235,17 @@
   .aging-group-head:first-child{margin-top:2px;}
 
   /* =========================================================
+     9b. COLLAPSIBLE REPORT CARDS — everything below a card's
+     title/description is hidden by default; an Expand button
+     reveals just that card's own data. Multiple cards can be
+     open at the same time (no accordion behaviour).
+     ========================================================= */
+  .collapsible-body{display:block;}
+  .collapsible-body.collapsed{display:none;}
+  .collapse-toggle .chev{display:inline-block;transition:transform var(--fast) var(--ease);margin-left:4px;}
+  .collapse-toggle.is-open .chev{transform:rotate(180deg);}
+
+  /* =========================================================
      10. NOTICES / MISC
      ========================================================= */
   .err{background:var(--rust-soft);color:var(--rust-dark);border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:12px;border:1px solid #f3c4a4;}
@@ -431,8 +442,11 @@
     </div>
 
     <div class="card">
-      <h2>All Bills</h2>
-      <div class="desc">Click any row to edit. Left edge color shows how overdue a pending bill is.</div>
+      <div class="card-head">
+        <div><h2>All Bills</h2><div class="desc">Click any row to edit. Left edge color shows how overdue a pending bill is.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="allBillsBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+      </div>
+      <div id="allBillsBody_card" class="collapsible-body collapsed">
       <div class="filter-row">
         <input type="text" class="search-input" id="searchBox" placeholder="Party, Bill # ya Amount se search karein…">
         <select id="statusFilter">
@@ -460,6 +474,7 @@
         </table>
       </div>
       <div id="emptyState" class="empty" style="display:none;">No bills yet — add your first entry above.</div>
+      </div>
     </div>
   </div>
 
@@ -567,21 +582,27 @@
           <div class="desc">Ye list bill-entry me party choose karte waqt suggestion aur auto-fill ke liye use hoti hai.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm collapse-toggle" data-target="partyListBody_card"><span class="label">Expand</span><span class="chev">▾</span></button>
           <button class="btn btn-ghost btn-sm" id="exportPartyBtn">Export to Excel</button>
         </div>
       </div>
+      <div id="partyListBody_card" class="collapsible-body collapsed">
       <div class="table-scroll">
         <table><thead><tr><th>Party</th><th>Code</th><th>City / Branch</th><th>Default Mode</th><th>Payment Cycle</th><th>Notes</th><th></th></tr></thead><tbody id="partyBody"></tbody></table>
       </div>
       <div id="partyEmpty" class="empty" style="display:none;">Koi party map nahi hui — upar se add karein.</div>
+      </div>
     </div>
   </div>
 
   <!-- ============ PARTY LEDGER ============ -->
   <div class="panel" id="panel-ledger">
     <div class="card">
-      <h2>Party Ledger</h2>
-      <div class="desc">Ek party choose karein — uske sabhi bills, payments aur running balance yahan dikhega.</div>
+      <div class="card-head">
+        <div><h2>Party Ledger</h2><div class="desc">Ek party choose karein — uske sabhi bills, payments aur running balance yahan dikhega.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="ledgerBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+      </div>
+      <div id="ledgerBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="filter-row">
         <select id="ledgerBranchSelect" style="min-width:200px;"><option value="">— All Branches —</option></select>
@@ -600,92 +621,98 @@
           </table>
         </div>
       </div>
+      </div>
     </div>
   </div>
 
   <!-- ============ DASHBOARD ============ -->
   <div class="panel" id="panel-dashboard">
+
     <div id="dashboardFilterNote"></div>
     <div class="stat-row" id="statRow"></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Email Sent Tracking</h2><div class="desc">Bill email hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportEmailTrackBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="emailTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportEmailTrackBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="emailTrackBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="emailTrackSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Email Sent</th><th>Days Since Email</th></tr></thead><tbody id="emailTrackBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Hard Copy Dispatch Tracking</h2><div class="desc">Hard copy dispatch hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportHcTrackBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="hcTrackBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportHcTrackBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="hcTrackBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="hcTrackSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Hard Copy Sent</th><th>Days Since Dispatch</th></tr></thead><tbody id="hcTrackBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Pending Payments by Party</h2><div class="desc">Parties who haven't paid yet, and how much is outstanding.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportPendingPartyBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="pendingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportPendingPartyBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="pendingBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="pendingPartySummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Pending</th><th>Amount Outstanding</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Pending Payments by Branch</h2><div class="desc">Branch-wise summary of bills and pending amounts (aggregated from party data).</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportBranchBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="branchBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportBranchBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="branchBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="branchSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Branch</th><th>Bills Count</th><th>Total Amount</th><th>Pending Bills</th><th>Pending Amount</th></tr></thead><tbody id="branchBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Month-wise Bill Report</h2><div class="desc">Total bills raised and their value, by bill period.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportMonthBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="monthBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportMonthBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="monthBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="monthSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Period</th><th>Bills Count</th><th>Total Amount</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Lag Analysis</h2><div class="desc">Gap between Bill Date and Actual (POD) Submission Date — lower is better.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportLagBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="lagBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportLagBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="lagBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="lagSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Period</th><th>Bill Date</th><th>Actual Submission</th><th>Lag (days)</th></tr></thead><tbody id="lagBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Aging Summary</h2><div class="desc">Days pending, counted from Submission (or POD) Date to today.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportAgingBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportAgingBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="agingBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="agingSummaryStrip"></div>
       <div class="bucket-row" id="agingBuckets"></div>
       <div class="table-scroll" style="margin-top:14px;"><table><thead><tr><th>Party</th><th>Period</th><th>Since</th><th>Days Pending</th><th>Amount</th></tr></thead><tbody id="agingBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
       <div class="card-head">
         <div><h2>Party-wise Month Report</h2><div class="desc">Har party ka outstanding balance, Bill Period (month) ke hisab se — sirf pending bills ke aadhar par. Columns data ke hisab se apne aap ban jaate hain.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportNewReportBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="newReportBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportNewReportBtn">Export to Excel</button></div>
       </div>
-      <div class="rule"></div>
+      <div id="newReportBody_card" class="collapsible-body collapsed"><div class="rule"></div>
       <div class="summary-strip" id="newReportSummary"></div>
       <div class="table-scroll"><table><thead id="newReportHead"></thead><tbody id="newReportBody"></tbody></table></div>
-    </div>
+    </div></div>
     <div class="card">
-      <h2>Update Aging Report</h2>
-      <div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar. Har bucket apni khud ki Excel file export kar sakta hai.</div>
+      <div class="card-head">
+        <div><h2>Update Aging Report</h2><div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar. Har bucket apni khud ki Excel file export kar sakta hai.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="agingGroupedBody_card"><span class="label">Expand</span><span class="chev">▾</span></button></div>
+      </div>
+      <div id="agingGroupedBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="summary-strip" id="agingGroupedSummary"></div>
       <div id="agingGrouped"></div>
+      </div>
     </div>
   </div>
 
@@ -701,20 +728,24 @@
     <div class="card">
       <div class="card-head">
         <div><h2>Party-wise Average Turnaround</h2><div class="desc">Sabse zyada time lene wali party sabse upar — follow-up prioritize karne ke liye.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportTurnaroundPartyBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundPartyBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundPartyBtn">Export to Excel</button></div>
       </div>
+      <div id="turnaroundPartyBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="summary-strip" id="turnaroundPartySummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Paid</th><th>Avg after Email</th><th>Avg after Hard Copy</th><th>Avg after POD</th><th>Avg after Bill Date</th></tr></thead><tbody id="turnaroundPartyBody"></tbody></table></div>
+      </div>
     </div>
     <div class="card">
       <div class="card-head">
         <div><h2>Bill-wise Turnaround Detail</h2><div class="desc">Har paid bill ka exact turnaround — latest payment sabse upar.</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportTurnaroundDetailBtn">Export to Excel</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm collapse-toggle" data-target="turnaroundBody_card"><span class="label">Expand</span><span class="chev">▾</span></button><button class="btn btn-ghost btn-sm" id="exportTurnaroundDetailBtn">Export to Excel</button></div>
       </div>
+      <div id="turnaroundBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="summary-strip" id="turnaroundDetailSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Payment Date</th><th>Days after Email</th><th>Days after Hard Copy</th><th>Days after POD</th><th>Days after Bill Date</th></tr></thead><tbody id="turnaroundBody"></tbody></table></div>
+      </div>
     </div>
   </div>
 
@@ -728,6 +759,25 @@
 const SUPABASE_URL = "https://hrhqygzzmjeqlbvhlagl.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_FZSnQb2hSWOYd8vAnRexzQ_jMCAFnoN";
 // ===================================================================
+
+// ---- COLLAPSIBLE REPORT CARDS ----
+// Generic, reusable: any button with class "collapse-toggle" and a
+// data-target pointing to an element id will show/hide that element and
+// flip its own label. Independent toggles — no accordion, multiple can
+// stay open together. Wired once at startup, safe no-op if none exist.
+function initCollapsibleCards(){
+  document.querySelectorAll('.collapse-toggle').forEach(btn=>{
+    if(btn.dataset.wired) return; // avoid double-binding if called twice
+    btn.dataset.wired = '1';
+    const body = document.getElementById(btn.dataset.target);
+    if(!body) return;
+    btn.addEventListener('click', ()=>{
+      const collapsedNow = body.classList.toggle('collapsed');
+      btn.classList.toggle('is-open', !collapsedNow);
+      btn.querySelector('.label').textContent = collapsedNow ? 'Expand' : 'Collapse';
+    });
+  });
+}
 
 // ---- TABS: attach FIRST, before anything that could throw, so basic
 // navigation always works even if a library below fails to load ----
@@ -2337,6 +2387,7 @@ function renderTurnaround(){
 }
 
 updateComputedFields();
+initCollapsibleCards();
 loadAll();
 </script>
 </body>
