@@ -80,6 +80,9 @@
   .card h2{font-size:14px;margin:0 0 3px;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);font-weight:800;}
   .card .desc{font-size:12.5px;color:var(--slate);margin:0 0 var(--sp-4);}
   .rule{height:2px;background:linear-gradient(90deg,var(--rust),transparent);width:36px;margin-bottom:var(--sp-3);border-radius:2px;}
+  .summary-strip{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 var(--sp-4);}
+  .summary-chip{background:var(--slate-soft);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:11.5px;color:var(--slate);font-weight:600;white-space:nowrap;}
+  .summary-chip b{color:var(--ink);font-weight:800;font-family:var(--mono);margin-left:3px;}
 
   /* =========================================================
      5. FORMS — grid, fields, focus/validation states
@@ -558,8 +561,15 @@
       </div>
     </div>
     <div class="card">
-      <h2>Party List</h2>
-      <div class="desc">Ye list bill-entry me party choose karte waqt suggestion aur auto-fill ke liye use hoti hai.</div>
+      <div class="card-head">
+        <div>
+          <h2>Party List</h2>
+          <div class="desc">Ye list bill-entry me party choose karte waqt suggestion aur auto-fill ke liye use hoti hai.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="exportPartyBtn">Export to Excel</button>
+        </div>
+      </div>
       <div class="table-scroll">
         <table><thead><tr><th>Party</th><th>Code</th><th>City / Branch</th><th>Default Mode</th><th>Payment Cycle</th><th>Notes</th><th></th></tr></thead><tbody id="partyBody"></tbody></table>
       </div>
@@ -579,6 +589,9 @@
       </div>
       <div id="ledgerEmpty" class="empty">Upar se ek party select karein.</div>
       <div id="ledgerContent" style="display:none;">
+        <div class="btn-row" style="justify-content:flex-end;margin-top:0;">
+          <button class="btn btn-ghost btn-sm" id="exportLedgerBtn">Export to Excel</button>
+        </div>
         <div class="stat-row" id="ledgerStatRow"></div>
         <div class="table-scroll">
           <table>
@@ -595,58 +608,83 @@
     <div id="dashboardFilterNote"></div>
     <div class="stat-row" id="statRow"></div>
     <div class="card">
-      <h2>Email Sent Tracking</h2>
-      <div class="desc">Bill email hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div>
+      <div class="card-head">
+        <div><h2>Email Sent Tracking</h2><div class="desc">Bill email hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportEmailTrackBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="emailTrackSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Email Sent</th><th>Days Since Email</th></tr></thead><tbody id="emailTrackBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Hard Copy Dispatch Tracking</h2>
-      <div class="desc">Hard copy dispatch hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div>
+      <div class="card-head">
+        <div><h2>Hard Copy Dispatch Tracking</h2><div class="desc">Hard copy dispatch hue kitne din ho gaye — jinke pending bills hain, sabse purane upar.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportHcTrackBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="hcTrackSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Hard Copy Sent</th><th>Days Since Dispatch</th></tr></thead><tbody id="hcTrackBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Pending Payments by Party</h2>
-      <div class="desc">Parties who haven't paid yet, and how much is outstanding.</div>
+      <div class="card-head">
+        <div><h2>Pending Payments by Party</h2><div class="desc">Parties who haven't paid yet, and how much is outstanding.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportPendingPartyBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="pendingPartySummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Pending</th><th>Amount Outstanding</th></tr></thead><tbody id="pendingBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Pending Payments by Branch</h2>
-      <div class="desc">Branch-wise summary of bills and pending amounts (aggregated from party data).</div>
+      <div class="card-head">
+        <div><h2>Pending Payments by Branch</h2><div class="desc">Branch-wise summary of bills and pending amounts (aggregated from party data).</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportBranchBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="branchSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Branch</th><th>Bills Count</th><th>Total Amount</th><th>Pending Bills</th><th>Pending Amount</th></tr></thead><tbody id="branchBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Month-wise Bill Report</h2>
-      <div class="desc">Total bills raised and their value, by bill period.</div>
+      <div class="card-head">
+        <div><h2>Month-wise Bill Report</h2><div class="desc">Total bills raised and their value, by bill period.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportMonthBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="monthSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Period</th><th>Bills Count</th><th>Total Amount</th><th>Paid</th><th>Pending</th></tr></thead><tbody id="monthBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Lag Analysis</h2>
-      <div class="desc">Gap between Bill Date and Actual (POD) Submission Date — lower is better.</div>
+      <div class="card-head">
+        <div><h2>Lag Analysis</h2><div class="desc">Gap between Bill Date and Actual (POD) Submission Date — lower is better.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportLagBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="lagSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Period</th><th>Bill Date</th><th>Actual Submission</th><th>Lag (days)</th></tr></thead><tbody id="lagBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Aging Summary</h2>
-      <div class="desc">Days pending, counted from Submission (or POD) Date to today.</div>
+      <div class="card-head">
+        <div><h2>Aging Summary</h2><div class="desc">Days pending, counted from Submission (or POD) Date to today.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportAgingBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="agingSummaryStrip"></div>
       <div class="bucket-row" id="agingBuckets"></div>
       <div class="table-scroll" style="margin-top:14px;"><table><thead><tr><th>Party</th><th>Period</th><th>Since</th><th>Days Pending</th><th>Amount</th></tr></thead><tbody id="agingBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Party-wise Month Report</h2>
-      <div class="desc">Har party ka outstanding balance, Bill Period (month) ke hisab se — sirf pending bills ke aadhar par. Columns data ke hisab se apne aap ban jaate hain.</div>
+      <div class="card-head">
+        <div><h2>Party-wise Month Report</h2><div class="desc">Har party ka outstanding balance, Bill Period (month) ke hisab se — sirf pending bills ke aadhar par. Columns data ke hisab se apne aap ban jaate hain.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportNewReportBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="newReportSummary"></div>
       <div class="table-scroll"><table><thead id="newReportHead"></thead><tbody id="newReportBody"></tbody></table></div>
     </div>
     <div class="card">
       <h2>Update Aging Report</h2>
-      <div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar.</div>
+      <div class="desc">Pending bills, 15-15 din ke buckets mein group kiye gaye hain (0-15, 15-30, 30-45, 45-60, 60+) — sabse purana bucket sabse upar. Har bucket apni khud ki Excel file export kar sakta hai.</div>
       <div class="rule"></div>
+      <div class="summary-strip" id="agingGroupedSummary"></div>
       <div id="agingGrouped"></div>
     </div>
   </div>
@@ -661,15 +699,21 @@
       <div class="stat-row" id="turnaroundStatRow"></div>
     </div>
     <div class="card">
-      <h2>Party-wise Average Turnaround</h2>
-      <div class="desc">Sabse zyada time lene wali party sabse upar — follow-up prioritize karne ke liye.</div>
+      <div class="card-head">
+        <div><h2>Party-wise Average Turnaround</h2><div class="desc">Sabse zyada time lene wali party sabse upar — follow-up prioritize karne ke liye.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportTurnaroundPartyBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="turnaroundPartySummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Paid</th><th>Avg after Email</th><th>Avg after Hard Copy</th><th>Avg after POD</th><th>Avg after Bill Date</th></tr></thead><tbody id="turnaroundPartyBody"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>Bill-wise Turnaround Detail</h2>
-      <div class="desc">Har paid bill ka exact turnaround — latest payment sabse upar.</div>
+      <div class="card-head">
+        <div><h2>Bill-wise Turnaround Detail</h2><div class="desc">Har paid bill ka exact turnaround — latest payment sabse upar.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" id="exportTurnaroundDetailBtn">Export to Excel</button></div>
+      </div>
       <div class="rule"></div>
+      <div class="summary-strip" id="turnaroundDetailSummary"></div>
       <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Payment Date</th><th>Days after Email</th><th>Days after Hard Copy</th><th>Days after POD</th><th>Days after Bill Date</th></tr></thead><tbody id="turnaroundBody"></tbody></table></div>
     </div>
   </div>
@@ -721,6 +765,10 @@ if(!hasXlsxLib){
 }
 
 let entries = [];
+// MODULE 4 — holds the exact same computed rows renderDashboard() displays,
+// so each report's Export button always exports what's on screen (single
+// source of truth, no duplicate calculation logic).
+let dashboardExportData = {};
 let parties = [];
 let editingId = null;
 let editingPartyId = null;
@@ -734,6 +782,176 @@ function daysBetween(a,b){ if(!a || !b) return null; return Math.round((new Date
 function fmtMoney(n){ n=Number(n)||0; return '₹'+n.toLocaleString('en-IN'); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ===================================================================
+// MODULE 1 — SHARED EXCEL EXPORT UTILITY
+// Har report isi ek function se export hoga, taaki formatting hamesha
+// consistent rahe: Serial Number, auto column width, header AutoFilter,
+// currency/date number-format, optional Totals row, timestamped filename.
+//
+// NOTE (honest limitation): yeh page jo CDN build use karta hai
+// (xlsx.full.min.js — SheetJS Community Edition), uska free version
+// Excel me BOLD/colored header ya FREEZE PANE likhna support nahi karta
+// — yeh SheetJS ke Pro tier ka feature hai. Isliye header bold/frozen
+// nahi dikhega jab file khulegi Excel me. Baaki sab (auto-width,
+// autofilter, number-format, totals, serial no., timestamp) fully
+// kaam karta hai aur asli file me dikhega. Agar bold/freeze zaroori
+// hai to hume exceljs library switch karni hogi — batayein to add kar dunga.
+//
+// Usage:
+// exportToExcel({
+//   rows: [...],                         // array of data objects
+//   columns: [                           // ordered column definitions
+//     { key:'party', header:'Party Name', type:'text' },
+//     { key:'amount', header:'Bill Amount', type:'currency' },
+//     { key:'billDate', header:'Bill Date', type:'date' },
+//     { value: e => computeStatusAuto(e), header:'Status', type:'text' }
+//   ],
+//   sheetName: 'Bills',                  // max 31 chars, auto-trimmed
+//   filenamePrefix: 'TBB_Bills_Export',
+//   totalsKeys: ['amount','pending']     // optional — columns to sum in a Total row
+// });
+// ===================================================================
+// BUGFIX: Excel sheet names cannot contain : \ / ? * [ ] and cannot be blank or
+// exceed 31 characters. Party names or labels used directly as sheet names
+// (e.g. "M/S ABC TRADERS", "60+ days") previously went in raw and could throw
+// at XLSX.writeFile() time. This sanitizes ANY sheet name safely.
+function sanitizeSheetName(name){
+  let s = (name===undefined || name===null) ? '' : String(name);
+  s = s.replace(/[:\\\/\?\*\[\]]/g, '-'); // Excel-invalid sheet-name characters only
+  s = s.replace(/^'+|'+$/g, '');           // sheet name can't start/end with apostrophe
+  s = s.trim();
+  if(!s) s = 'Report';
+  if(s.length > 31) s = s.slice(0, 31).trim();
+  if(!s) s = 'Report';
+  return s;
+}
+
+// BUGFIX: date columns were being exported as plain text strings, not real
+// Excel date cells (so they wouldn't sort/filter as dates, and would ignore
+// the requested DD-MM-YYYY display format). This turns a 'YYYY-MM-DD' string
+// into a UTC-safe JS Date object so SheetJS writes a proper date cell.
+function parseDateForExcel(v){
+  if(v===null || v===undefined || v==='') return null;
+  if(v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  const s = v.toString().trim();
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(!m) return null; // unrecognized format — leave the cell blank rather than exporting wrong data
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2])-1, Number(m[3])));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function exportToExcel(opts){
+  const { rows, columns, sheetName, filenamePrefix, totalsKeys } = opts || {};
+  if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
+  if(!rows || !rows.length){ showErr('Export ke liye koi data nahi mila. Filters check karein.'); return; }
+  if(!columns || !columns.length){ showErr('Export configuration me columns missing hain.'); return; }
+
+  const getVal = (c, row) => (typeof c.value === 'function') ? c.value(row) : row[c.key];
+
+  const header = ['S.No.', ...columns.map(c=>c.header)];
+  const aoa = [header];
+
+  rows.forEach((row, i)=>{
+    const line = [i+1];
+    columns.forEach(c=>{
+      let v = getVal(c, row);
+      if(c.type==='currency' || c.type==='number'){ v = Number(v)||0; }
+      else if(c.type==='date'){ v = parseDateForExcel(v); if(v===null) v=''; }
+      else if(v===undefined || v===null){ v = ''; }
+      line.push(v);
+    });
+    aoa.push(line);
+  });
+
+  let totalsRowIdx = -1;
+  if(totalsKeys && totalsKeys.length){
+    const totalsLine = ['', 'Total'];
+    columns.slice(1).forEach(c=>{
+      if(totalsKeys.includes(c.key)){
+        const sum = rows.reduce((s,row)=> s + (Number(getVal(c,row))||0), 0);
+        totalsLine.push(sum);
+      } else {
+        totalsLine.push('');
+      }
+    });
+    aoa.push(totalsLine);
+    totalsRowIdx = aoa.length - 1;
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
+
+  // Auto column width (content-aware, min 8 / max 40 chars).
+  // BUGFIX: a raw Date object stringifies to something like
+  // "Thu Jul 04 2026 00:00:00 GMT+0000" which used to blow the width
+  // calculation way past 40 chars — use the DD-MM-YYYY display length instead.
+  ws['!cols'] = header.map((h, ci)=>{
+    let max = String(h).length;
+    for(let r=1; r<aoa.length; r++){
+      const v = aoa[r][ci];
+      let cellStr;
+      if(v===undefined || v===null || v==='') cellStr = '';
+      else if(v instanceof Date) cellStr = '00-00-0000';
+      else cellStr = String(v);
+      if(cellStr.length > max) max = cellStr.length;
+    }
+    return { wch: Math.min(Math.max(max+2, 8), 40) };
+  });
+
+  // AutoFilter on header row
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s:{r:0,c:0}, e:{r:0,c:header.length-1} }) };
+
+  // Currency / number / date formatting on data rows
+  columns.forEach((c, idx)=>{
+    const col = idx + 1; // +1 because S.No. occupies column 0
+    for(let r=1; r<aoa.length; r++){
+      const addr = XLSX.utils.encode_cell({ r, c: col });
+      const cell = ws[addr];
+      if(!cell || cell.v==='' || cell.v===undefined || cell.v===null) continue;
+      if(c.type==='currency'){ cell.t='n'; cell.z='₹#,##0.00'; }
+      else if(c.type==='number'){ cell.t='n'; cell.z='#,##0'; }
+      else if(c.type==='date' && cell.v instanceof Date){ cell.t='d'; cell.z='dd-mm-yyyy'; }
+    }
+  });
+
+  // Best-effort bold header (no-op on style-less community builds, harmless otherwise)
+  for(let c=0;c<header.length;c++){
+    const addr = XLSX.utils.encode_cell({ r:0, c });
+    if(ws[addr]) ws[addr].s = { font:{ bold:true } };
+  }
+
+  const wb = XLSX.utils.book_new();
+  // BUGFIX: sheetName can be a raw party name or bucket label containing
+  // characters Excel forbids in sheet names — always sanitize before use.
+  XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(sheetName));
+
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  XLSX.writeFile(wb, `${filenamePrefix||'Export'}_${ts}.xlsx`);
+  showOk('Excel file download ho gayi.');
+}
+
+// ===================================================================
+// MODULE 8 — DASHBOARD SUMMARY METADATA STRIP
+// Har report table ke upar ek chhota chip-strip: jitne bhi items diye
+// jaayein (Total Records / Grand Total / Paid / Pending / Average /
+// Last Updated) sirf wahi dikhenge jo relevant hain us report ke liye.
+// Purani calculation logic ko chhua nahi gaya — yeh sirf display layer hai.
+// Usage: renderSummaryStrip('emailTrackSummary', [
+//   { label:'Total Records', value: rows.length },
+//   { label:'Total Outstanding', value: fmtMoney(sum) },
+//   { label:'Last Updated', value: nowTimeStr() }
+// ]);
+// ===================================================================
+function nowTimeStr(){
+  return new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function renderSummaryStrip(containerId, items){
+  const box = el(containerId);
+  if(!box) return;
+  const chips = (items||[]).filter(it => it && it.value!==undefined && it.value!==null && it.value!=='')
+    .map(it => `<div class="summary-chip">${escapeHtml(it.label)}:<b>${escapeHtml(String(it.value))}</b></div>`);
+  box.innerHTML = chips.join('');
+}
 
 // normalize excel/date-ish values to YYYY-MM-DD
 function normDate(v){
@@ -1382,25 +1600,325 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
 });
 
 el('exportBtn').addEventListener('click', ()=>{
-  if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); return; }
   const rows = getFilteredEntries().map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
     const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
-    return {
-      "Bill Number": e.billNumber, "Invoice Number": e.invoiceNumber, "Party Name": e.party, "Bill Period": e.billPeriod, "Bill Date": e.billDate,
-      "Bill Uploaded Date": e.uploadedDate,
-      "Email Sent Date": e.emailDate, "Hard Copy Sent Date": e.hardcopyDate,
-      "Bill Submission Date": e.submitDate, "Expected Payment Date": e.expectedPayDate, "Delivery Mode": e.mode,
-      "Actual Submission Date (POD)": e.actualDate, "Bill Amount": e.amount, "GST Amount": e.gstAmount, "TDS": e.tds, "Net Amount": net,
-      "Payment Date": e.payDate, "Payment Amount": e.paymentAmount, "Pending Amount": pending, "Payment Mode": e.paymentMode,
-      "Cheque Number": e.cheque, "UTR Number": e.utr, "Reference Number": e.refNo, "Remarks": e.remarks,
-      "Status": computeStatusAuto(e)
-    };
+    return { ...e, netAmount: net, pendingAmount: pending, statusAuto: computeStatusAuto(e) };
   });
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Bills");
-  XLSX.writeFile(wb, "TBB_Bills_Export.xlsx");
+  exportToExcel({
+    rows,
+    columns: [
+      { key:'billNumber', header:'Bill Number', type:'text' },
+      { key:'invoiceNumber', header:'Invoice Number', type:'text' },
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'billDate', header:'Bill Date', type:'date' },
+      { key:'uploadedDate', header:'Bill Uploaded Date', type:'date' },
+      { key:'emailDate', header:'Email Sent Date', type:'date' },
+      { key:'hardcopyDate', header:'Hard Copy Sent Date', type:'date' },
+      { key:'submitDate', header:'Bill Submission Date', type:'date' },
+      { key:'expectedPayDate', header:'Expected Payment Date', type:'date' },
+      { key:'mode', header:'Delivery Mode', type:'text' },
+      { key:'actualDate', header:'Actual Submission Date (POD)', type:'date' },
+      { key:'amount', header:'Bill Amount', type:'currency' },
+      { key:'gstAmount', header:'GST Amount', type:'currency' },
+      { key:'tds', header:'TDS', type:'currency' },
+      { key:'netAmount', header:'Net Amount', type:'currency' },
+      { key:'payDate', header:'Payment Date', type:'date' },
+      { key:'paymentAmount', header:'Payment Amount', type:'currency' },
+      { key:'pendingAmount', header:'Pending Amount', type:'currency' },
+      { key:'paymentMode', header:'Payment Mode', type:'text' },
+      { key:'cheque', header:'Cheque Number', type:'text' },
+      { key:'utr', header:'UTR Number', type:'text' },
+      { key:'refNo', header:'Reference Number', type:'text' },
+      { key:'remarks', header:'Remarks', type:'text' },
+      { key:'statusAuto', header:'Status', type:'text' }
+    ],
+    sheetName: 'Bills',
+    filenamePrefix: 'TBB_Bills_Export',
+    totalsKeys: ['amount','gstAmount','tds','netAmount','paymentAmount','pendingAmount']
+  });
+});
+
+// ===================================================================
+// MODULE 2 — PARTY MASTER EXPORT
+// ===================================================================
+el('exportPartyBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: parties,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'code', header:'Party Code', type:'text' },
+      { key:'gst', header:'GST No', type:'text' },
+      { key:'pan', header:'PAN', type:'text' },
+      { key:'address', header:'Address', type:'text' },
+      { key:'state', header:'State', type:'text' },
+      { key:'city', header:'City', type:'text' },
+      { key:'branch', header:'Branch', type:'text' },
+      { key:'zone', header:'Zone', type:'text' },
+      { key:'contact', header:'Contact Person', type:'text' },
+      { key:'mobile', header:'Mobile', type:'text' },
+      { key:'email', header:'Email', type:'text' },
+      { key:'altEmail', header:'Alternate Email', type:'text' },
+      { key:'accEmail', header:'Accounts Email', type:'text' },
+      { key:'recEmail', header:'Recovery Email', type:'text' },
+      { key:'mode', header:'Bill Receive Through', type:'text' },
+      { key:'cycle', header:'Payment Cycle', type:'text' },
+      { key:'cycleDays', header:'Custom Cycle (days)', type:'number' },
+      { value: p => (p.requiredDocs||[]).join(', '), header:'Required Documents', type:'text' },
+      { value: p => p.autoReminder ? 'Yes' : 'No', header:'Auto Reminder', type:'text' },
+      { key:'remFreq', header:'Reminder Frequency', type:'text' },
+      { key:'creditLimit', header:'Credit Limit', type:'currency' },
+      { key:'outstandingLimit', header:'Outstanding Limit', type:'currency' },
+      { value: p => p.blocked ? 'Yes' : 'No', header:'Blocked', type:'text' },
+      { key:'holdReason', header:'Hold Reason', type:'text' },
+      { key:'notes', header:'Notes', type:'text' }
+    ],
+    sheetName: 'Party Master',
+    filenamePrefix: 'GWE_Party_Master_Export',
+    totalsKeys: ['creditLimit','outstandingLimit']
+  });
+});
+
+// ===================================================================
+// MODULE 3 — PARTY LEDGER EXPORT (selected party only)
+// Same filter/sort/calculation as renderLedger() so numbers always
+// match what's on screen — running balance excludes Cancelled/
+// Disputed/Rejected bills, same as the bugfix applied earlier.
+// ===================================================================
+el('exportLedgerBtn').addEventListener('click', ()=>{
+  const party = el('ledgerPartySelect').value;
+  const branch = el('ledgerBranchSelect') ? el('ledgerBranchSelect').value : '';
+  if(!party){ showErr('Pehle ek party select karein.'); return; }
+
+  let rows = entries.filter(e=>e.party===party);
+  if(branch){ rows = rows.filter(e=>{ const p = parties.find(x=>x.party===e.party); return p ? getBranchKey(p)===branch : branch===UNKNOWN_BRANCH_KEY; }); }
+  rows = rows.sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
+
+  let running = 0;
+  const withCalc = rows.map(e=>{
+    const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
+    const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+    running += isClosedStatus(e) ? 0 : pending;
+    return { ...e, net, pending, runningBalance: running };
+  });
+
+  exportToExcel({
+    rows: withCalc,
+    columns: [
+      { key:'billNumber', header:'Bill Number', type:'text' },
+      { key:'invoiceNumber', header:'Invoice Number', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'billDate', header:'Bill Date', type:'date' },
+      { key:'mode', header:'Delivery Mode', type:'text' },
+      { key:'submitDate', header:'Bill Submission Date', type:'date' },
+      { key:'amount', header:'Bill Amount', type:'currency' },
+      { key:'gstAmount', header:'GST Amount', type:'currency' },
+      { key:'tds', header:'TDS', type:'currency' },
+      { key:'net', header:'Net Amount', type:'currency' },
+      { key:'payDate', header:'Payment Date', type:'date' },
+      { key:'paymentAmount', header:'Payment Received', type:'currency' },
+      { key:'paidAmount', value: e => e.net - e.pending, header:'Paid Amount', type:'currency' },
+      { key:'pendingRecovery', value: e => isClosedStatus(e) ? 0 : e.pending, header:'Pending Balance', type:'currency' },
+      { value: e => computeStatusAuto(e), header:'Status', type:'text' },
+      { key:'runningBalance', header:'Running Balance', type:'currency' }
+    ],
+    sheetName: party,
+    filenamePrefix: 'TBB_Ledger_' + party.replace(/[^a-z0-9]+/gi,'_'),
+    totalsKeys: ['amount','gstAmount','tds','net','paymentAmount','paidAmount','pendingRecovery']
+  });
+});
+
+// ===================================================================
+// MODULE 4 — DASHBOARD REPORTS EXPORT
+// Uses dashboardExportData, which renderDashboard() populates with the
+// exact same rows shown on screen — so exports always match the UI.
+// If Dashboard tab hasn't been opened yet, dashboardExportData.<key> is
+// undefined and exportToExcel's own guard shows a friendly error.
+// ===================================================================
+el('exportEmailTrackBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.emailRows,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'billNumber', header:'Bill Number', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'emailDate', header:'Email Sent Date', type:'date' },
+      { key:'days', header:'Days Since Email', type:'number' }
+    ],
+    sheetName: 'Email Tracking',
+    filenamePrefix: 'TBB_Email_Tracking_Export'
+  });
+});
+
+el('exportHcTrackBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.hcRows,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'billNumber', header:'Bill Number', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'hardcopyDate', header:'Hard Copy Sent Date', type:'date' },
+      { key:'days', header:'Days Since Dispatch', type:'number' }
+    ],
+    sheetName: 'Hard Copy Tracking',
+    filenamePrefix: 'TBB_HardCopy_Tracking_Export'
+  });
+});
+
+el('exportPendingPartyBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.pendingByParty,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'count', header:'Bills Pending', type:'number' },
+      { key:'amt', header:'Amount Outstanding', type:'currency' }
+    ],
+    sheetName: 'Pending by Party',
+    filenamePrefix: 'TBB_Pending_By_Party_Export',
+    totalsKeys: ['count','amt']
+  });
+});
+
+el('exportBranchBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.branchWise,
+    columns: [
+      { key:'branch', header:'Branch', type:'text' },
+      { key:'count', header:'Bills Count', type:'number' },
+      { key:'amt', header:'Total Amount', type:'currency' },
+      { key:'pendingCount', header:'Pending Bills', type:'number' },
+      { key:'pendingAmt', header:'Pending Amount', type:'currency' }
+    ],
+    sheetName: 'Pending by Branch',
+    filenamePrefix: 'TBB_Pending_By_Branch_Export',
+    totalsKeys: ['count','amt','pendingCount','pendingAmt']
+  });
+});
+
+el('exportMonthBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.monthWise,
+    columns: [
+      { key:'period', header:'Bill Period', type:'text' },
+      { key:'count', header:'Bills Count', type:'number' },
+      { key:'amt', header:'Total Amount', type:'currency' },
+      { key:'paid', header:'Paid', type:'number' },
+      { key:'pending', header:'Pending', type:'number' }
+    ],
+    sheetName: 'Month-wise Report',
+    filenamePrefix: 'TBB_Month_Report_Export',
+    totalsKeys: ['count','amt','paid','pending']
+  });
+});
+
+el('exportLagBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.lagRows,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'billDate', header:'Bill Date', type:'date' },
+      { key:'actualDate', header:'Actual Submission (POD)', type:'date' },
+      { key:'lag', header:'Lag (days)', type:'number' }
+    ],
+    sheetName: 'Lag Analysis',
+    filenamePrefix: 'TBB_Lag_Analysis_Export'
+  });
+});
+
+// MODULE 6 — Aging Reports Export.
+// Full aging list (sabhi buckets ek saath) + bucket-wise (0-15/15-30/30-45/45-60/60+)
+// alag-alag export, dashboardExportData.agingRows (renderDashboard se populated) use karte hain.
+const agingExportColumns = [
+  { key:'party', header:'Party Name', type:'text' },
+  { key:'billPeriod', header:'Bill Period', type:'text' },
+  { key:'since', header:'Since Date', type:'date' },
+  { key:'days', header:'Days Pending', type:'number' },
+  { key:'pend', header:'Amount', type:'currency' },
+  { value: r => bucketLabel[r.bucket], header:'Bucket', type:'text' }
+];
+
+el('exportAgingBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.agingRows,
+    columns: agingExportColumns,
+    sheetName: 'Aging Summary',
+    filenamePrefix: 'TBB_Aging_Summary_Export',
+    totalsKeys: ['pend']
+  });
+});
+
+function exportAgingBucket(idx){
+  const rows = (dashboardExportData.agingRows||[]).filter(r=>r.bucket===idx);
+  exportToExcel({
+    rows,
+    columns: agingExportColumns,
+    // BUGFIX: previously stripped to \w only, which deleted the '+' from
+    // "60+ days" (became "60 days"). exportToExcel's sanitizeSheetName now
+    // handles the real Excel-invalid characters, so pass the label as-is.
+    sheetName: bucketLabel[idx],
+    filenamePrefix: `TBB_Aging_${bucketLabel[idx].replace(/[^\w]+/g,'_')}_Export`,
+    totalsKeys: ['pend']
+  });
+}
+
+// Party-wise Month Report — columns are dynamic (one per bill period, e.g. April, May),
+// so unlike other reports we build the column list on the fly from whatever periods
+// exist in the data right now, rather than a fixed list.
+el('exportNewReportBtn').addEventListener('click', ()=>{
+  const periods = dashboardExportData.partyMonthPeriods || [];
+  const columns = [
+    { key:'party', header:'Party Name', type:'text' },
+    ...periods.map(p => ({ key:p, header:p, type:'currency' })),
+    { key:'total', header:'Total', type:'currency' }
+  ];
+  exportToExcel({
+    rows: dashboardExportData.partyMonthRows,
+    columns,
+    sheetName: 'Party-wise Month Report',
+    filenamePrefix: 'TBB_PartyWise_Month_Report_Export',
+    totalsKeys: [...periods, 'total']
+  });
+});
+
+// MODULE 7 — Payment Turnaround Export.
+// Averages/day-gaps can genuinely be "no data" (party never got that document type),
+// so those columns use type:'text' with a value fn returning '' for null — this keeps
+// blank cells blank in Excel instead of misrepresenting "no data" as "0 days".
+el('exportTurnaroundPartyBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.turnaroundPartyRows,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'count', header:'Bills Paid', type:'number' },
+      { value: v => v.avgEmail==null ? '' : Math.round(v.avgEmail*10)/10, header:'Avg Days after Email', type:'text' },
+      { value: v => v.avgHard==null ? '' : Math.round(v.avgHard*10)/10, header:'Avg Days after Hard Copy', type:'text' },
+      { value: v => v.avgPod==null ? '' : Math.round(v.avgPod*10)/10, header:'Avg Days after POD', type:'text' },
+      { value: v => v.avgBill==null ? '' : Math.round(v.avgBill*10)/10, header:'Avg Days after Bill Date', type:'text' }
+    ],
+    sheetName: 'Party-wise Turnaround',
+    filenamePrefix: 'TBB_Turnaround_PartyWise_Export',
+    totalsKeys: ['count']
+  });
+});
+
+el('exportTurnaroundDetailBtn').addEventListener('click', ()=>{
+  exportToExcel({
+    rows: dashboardExportData.turnaroundDetailRows,
+    columns: [
+      { key:'party', header:'Party Name', type:'text' },
+      { key:'billNumber', header:'Bill #', type:'text' },
+      { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'payDate', header:'Payment Date', type:'date' },
+      { value: r => r.dEmail==null ? '' : r.dEmail, header:'Days after Email', type:'text' },
+      { value: r => r.dHard==null ? '' : r.dHard, header:'Days after Hard Copy', type:'text' },
+      { value: r => r.dPod==null ? '' : r.dPod, header:'Days after POD', type:'text' },
+      { value: r => r.dBill==null ? '' : r.dBill, header:'Days after Bill Date', type:'text' }
+    ],
+    sheetName: 'Bill-wise Turnaround',
+    filenamePrefix: 'TBB_Turnaround_BillWise_Export'
+  });
 });
 
 // ---------------- FILTERS ----------------
@@ -1549,14 +2067,35 @@ function renderDashboard(){
 
   const emailRows = pending.filter(e=>e.emailDate).map(e=>({...e, days: daysBetween(e.emailDate, todayStr())})).sort((a,b)=>b.days-a.days);
   el('emailTrackBody').innerHTML = emailRows.length ? emailRows.map(e=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(e.party)}</td><td data-label="Bill #">${escapeHtml(e.billNumber||'—')}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Email Sent">${fmtDate(e.emailDate)}</td><td data-label="Days Since Email" style="font-weight:700;color:${e.days>15?'var(--rust)':'var(--ink)'}">${e.days}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Koi pending bill email-tracked nahi hai</td></tr>';
+  dashboardExportData.emailRows = emailRows;
+  renderSummaryStrip('emailTrackSummary', [
+    { label:'Total Records', value: emailRows.length },
+    { label:'Total Outstanding', value: emailRows.length ? fmtMoney(emailRows.reduce((s,r)=>s+r.pend,0)) : null },
+    { label:'Avg Days Since Email', value: emailRows.length ? Math.round((emailRows.reduce((s,r)=>s+r.days,0)/emailRows.length)*10)/10 : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   const hcRows = pending.filter(e=>e.hardcopyDate).map(e=>({...e, days: daysBetween(e.hardcopyDate, todayStr())})).sort((a,b)=>b.days-a.days);
   el('hcTrackBody').innerHTML = hcRows.length ? hcRows.map(e=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(e.party)}</td><td data-label="Bill #">${escapeHtml(e.billNumber||'—')}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Hard Copy Sent">${fmtDate(e.hardcopyDate)}</td><td data-label="Days Since Dispatch" style="font-weight:700;color:${e.days>15?'var(--rust)':'var(--ink)'}">${e.days}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Koi pending bill hard-copy-tracked nahi hai</td></tr>';
+  dashboardExportData.hcRows = hcRows;
+  renderSummaryStrip('hcTrackSummary', [
+    { label:'Total Records', value: hcRows.length },
+    { label:'Total Outstanding', value: hcRows.length ? fmtMoney(hcRows.reduce((s,r)=>s+r.pend,0)) : null },
+    { label:'Avg Days Since Dispatch', value: hcRows.length ? Math.round((hcRows.reduce((s,r)=>s+r.days,0)/hcRows.length)*10)/10 : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   const byParty={};
   pending.forEach(e=>{ byParty[e.party]=byParty[e.party]||{count:0,amt:0}; byParty[e.party].count++; byParty[e.party].amt+=e.pend; });
   const partyRows = Object.entries(byParty).sort((a,b)=>b[1].amt-a[1].amt);
   el('pendingBody').innerHTML = partyRows.length ? partyRows.map(([p,v])=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(p)}</td><td data-label="Bills Pending">${v.count}</td><td data-label="Amount Outstanding">${fmtMoney(v.amt)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No pending payments 🎉</td></tr>';
+  dashboardExportData.pendingByParty = partyRows.map(([p,v])=>({ party:p, count:v.count, amt:v.amt }));
+  renderSummaryStrip('pendingPartySummary', [
+    { label:'Total Parties', value: partyRows.length },
+    { label:'Total Bills Pending', value: partyRows.length ? partyRows.reduce((s,[,v])=>s+v.count,0) : null },
+    { label:'Total Outstanding', value: partyRows.length ? fmtMoney(partyRows.reduce((s,[,v])=>s+v.amt,0)) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   // Branch-wise summary (aggregate by party -> branch mapping from party_master)
   const byBranch = {};
@@ -1571,19 +2110,47 @@ function renderDashboard(){
   });
   const branchRows = Object.entries(byBranch).sort((a,b)=> (b[1].pendingAmt||0) - (a[1].pendingAmt||0));
   el('branchBody').innerHTML = branchRows.length ? branchRows.map(([br,v])=>`<tr><td class="name-cell" data-label="Branch">${escapeHtml(br)}</td><td data-label="Bills Count">${v.count}</td><td data-label="Total Amount">${fmtMoney(v.amt)}</td><td data-label="Pending Bills">${v.pendingCount}</td><td data-label="Pending Amount">${fmtMoney(v.pendingAmt)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No branch/city/zone/state/code data available</td></tr>';
+  dashboardExportData.branchWise = branchRows.map(([br,v])=>({ branch:br, count:v.count, amt:v.amt, pendingCount:v.pendingCount, pendingAmt:v.pendingAmt }));
+  renderSummaryStrip('branchSummary', [
+    { label:'Total Branches', value: branchRows.length },
+    { label:'Grand Total', value: branchRows.length ? fmtMoney(branchRows.reduce((s,[,v])=>s+v.amt,0)) : null },
+    { label:'Total Pending', value: branchRows.length ? fmtMoney(branchRows.reduce((s,[,v])=>s+v.pendingAmt,0)) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   const byMonth={};
   calc.forEach(e=>{ const m=e.billPeriod||'—'; byMonth[m]=byMonth[m]||{count:0,amt:0,paid:0,pending:0}; byMonth[m].count++; byMonth[m].amt+=e.net; if(e.pend<=0) byMonth[m].paid++; else if(!isClosedStatus(e)) byMonth[m].pending++; });
   el('monthBody').innerHTML = Object.entries(byMonth).length ? Object.entries(byMonth).map(([m,v])=>`<tr><td class="name-cell" data-label="Period">${escapeHtml(m)}</td><td data-label="Bills Count">${v.count}</td><td data-label="Total Amount">${fmtMoney(v.amt)}</td><td data-label="Paid">${v.paid}</td><td data-label="Pending">${v.pending}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No bills yet</td></tr>';
+  dashboardExportData.monthWise = Object.entries(byMonth).map(([m,v])=>({ period:m, count:v.count, amt:v.amt, paid:v.paid, pending:v.pending }));
+  renderSummaryStrip('monthSummary', [
+    { label:'Total Periods', value: Object.keys(byMonth).length },
+    { label:'Grand Total', value: Object.keys(byMonth).length ? fmtMoney(Object.values(byMonth).reduce((s,v)=>s+v.amt,0)) : null },
+    { label:'Total Paid', value: Object.keys(byMonth).length ? Object.values(byMonth).reduce((s,v)=>s+v.paid,0) : null },
+    { label:'Total Pending', value: Object.keys(byMonth).length ? Object.values(byMonth).reduce((s,v)=>s+v.pending,0) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   const lagRows = calc.filter(e=>e.billDate&&e.actualDate).map(e=>({...e,lag:daysBetween(e.billDate,e.actualDate)})).sort((a,b)=>b.lag-a.lag);
   el('lagBody').innerHTML = lagRows.length ? lagRows.map(e=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(e.party)}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Bill Date">${fmtDate(e.billDate)}</td><td data-label="Actual Submission">${fmtDate(e.actualDate)}</td><td data-label="Lag (days)" style="font-weight:700;color:${e.lag>15?'var(--rust)':'var(--ink)'}">${e.lag}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No POD/actual submission dates recorded yet</td></tr>';
+  dashboardExportData.lagRows = lagRows;
+  renderSummaryStrip('lagSummary', [
+    { label:'Total Records', value: lagRows.length },
+    { label:'Average Lag', value: lagRows.length ? (Math.round((lagRows.reduce((s,r)=>s+r.lag,0)/lagRows.length)*10)/10)+' days' : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   const agingRows = pending.filter(e=>e.submitDate||e.actualDate).map(e=>{ const ref=e.actualDate||e.submitDate; const d=daysBetween(ref,todayStr()); return {...e,since:ref,days:d,bucket:agingBucket(d)}; }).sort((a,b)=>b.days-a.days);
   const bucketCounts=[0,0,0,0,0], bucketAmts=[0,0,0,0,0];
   agingRows.forEach(r=>{ bucketCounts[r.bucket]++; bucketAmts[r.bucket]+=r.pend; });
   el('agingBuckets').innerHTML = [0,1,2,3,4].map(i=>`<div class="bucket ${bucketClass[i]}"><div class="n">${bucketCounts[i]}</div><div class="l">${bucketLabel[i]} · ${fmtMoney(bucketAmts[i])}</div></div>`).join('');
   el('agingBody').innerHTML = agingRows.length ? agingRows.map(r=>`<tr><td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td><td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td><td data-label="Since">${fmtDate(r.since)}</td><td data-label="Days Pending" style="font-weight:700;color:${['var(--green)','var(--amber)','var(--rust)','#9A3412','#1e1a17'][r.bucket]}">${r.days}</td><td data-label="Amount">${fmtMoney(r.pend)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No pending bills with submission dates</td></tr>';
+  dashboardExportData.agingRows = agingRows;
+  renderSummaryStrip('agingSummaryStrip', [
+    { label:'Total Records', value: agingRows.length },
+    { label:'Total Pending Amount', value: agingRows.length ? fmtMoney(agingRows.reduce((s,r)=>s+r.pend,0)) : null },
+    { label:'Average Days Pending', value: agingRows.length ? Math.round(agingRows.reduce((s,r)=>s+r.days,0)/agingRows.length) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   renderNewReport(pending, agingRows);
 }
@@ -1615,28 +2182,45 @@ function renderNewReport(pending, agingRows){
   const partyList = Array.from(partiesSet).sort((a,b)=> (partyTotals[b]||0)-(partyTotals[a]||0));
 
   const headEl = el('newReportHead'), bodyEl = el('newReportBody');
+  let newReportGrandTotal = 0;
   if(headEl && bodyEl){
     if(partyList.length===0 || periods.length===0){
       headEl.innerHTML = '<tr><th>Party Name</th><th>Balance</th></tr>';
       bodyEl.innerHTML = '<tr><td colspan="2" class="empty">Koi pending balance nahi — sab clear hai 🎉</td></tr>';
+      dashboardExportData.partyMonthRows = [];
+      dashboardExportData.partyMonthPeriods = [];
     } else {
       headEl.innerHTML = '<tr><th>Party Name</th>' + periods.map(p=>`<th>${escapeHtml(p)}</th>`).join('') + '<th>Total</th></tr>';
       const periodTotals = {}; periods.forEach(p=>periodTotals[p]=0);
       let grandTotal = 0;
+      const exportRows = [];
       const rowsHtml = partyList.map(party=>{
         let rowTotal = 0;
+        const exportRow = { party };
         const cells = periods.map(p=>{
           const amt = (periodPartyMap[p] && periodPartyMap[p][party]) || 0;
           rowTotal += amt; periodTotals[p] += amt;
+          exportRow[p] = amt;
           return `<td data-label="${escapeHtml(p)}">${amt ? fmtMoney(amt) : '—'}</td>`;
         }).join('');
         grandTotal += rowTotal;
+        exportRow.total = rowTotal;
+        exportRows.push(exportRow);
         return `<tr><td class="name-cell" data-label="Party Name">${escapeHtml(party)}</td>${cells}<td data-label="Total" style="font-weight:800;color:var(--rust);">${fmtMoney(rowTotal)}</td></tr>`;
       }).join('');
       const totalCells = periods.map(p=>`<td data-label="${escapeHtml(p)}">${fmtMoney(periodTotals[p])}</td>`).join('');
       bodyEl.innerHTML = rowsHtml + `<tr style="font-weight:800;background:var(--slate-soft);"><td class="name-cell" data-label="Party Name">TOTAL</td>${totalCells}<td data-label="Total" style="color:var(--rust);">${fmtMoney(grandTotal)}</td></tr>`;
+      newReportGrandTotal = grandTotal;
+      dashboardExportData.partyMonthRows = exportRows;
+      dashboardExportData.partyMonthPeriods = periods;
     }
   }
+  renderSummaryStrip('newReportSummary', [
+    { label:'Total Parties', value: partyList.length || null },
+    { label:'Total Periods', value: periods.length || null },
+    { label:'Grand Total', value: partyList.length ? fmtMoney(newReportGrandTotal) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   // ---- Aging Report grouped by 15-day bucket, sirf pending bills ----
   const groupEl = el('agingGrouped');
@@ -1648,12 +2232,21 @@ function renderNewReport(pending, agingRows){
     } else {
       groupEl.innerHTML = active.map(g=>{
         const amt = g.rows.reduce((s,r)=>s+r.pend,0);
-        return `<div class="aging-group-head ${bucketClass[g.idx]}">${bucketLabel[g.idx]} · ${g.rows.length} bill${g.rows.length>1?'s':''} · ${fmtMoney(amt)}</div>
+        return `<div class="aging-group-head ${bucketClass[g.idx]}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <span>${bucketLabel[g.idx]} · ${g.rows.length} bill${g.rows.length>1?'s':''} · ${fmtMoney(amt)}</span>
+        <button class="btn btn-ghost btn-sm" style="height:32px;" onclick="exportAgingBucket(${g.idx})">Export to Excel</button>
+        </div>
         <div class="table-scroll" style="margin-bottom:14px;"><table><thead><tr><th>Party Name</th><th>Amount</th><th>Days Pending</th></tr></thead><tbody>
         ${g.rows.map(r=>`<tr><td class="name-cell" data-label="Party Name">${escapeHtml(r.party)}</td><td data-label="Amount">${fmtMoney(r.pend)}</td><td data-label="Days Pending" style="font-weight:700;">${r.days}</td></tr>`).join('')}
         </tbody></table></div>`;
       }).join('');
     }
+    renderSummaryStrip('agingGroupedSummary', [
+      { label:'Total Records', value: agingRows.length || null },
+      { label:'Total Amount', value: agingRows.length ? fmtMoney(agingRows.reduce((s,r)=>s+r.pend,0)) : null },
+      { label:'Buckets Active', value: active.length || null },
+      { label:'Last Updated', value: nowTimeStr() }
+    ]);
   }
 }
 
@@ -1717,6 +2310,12 @@ function renderTurnaround(){
     <td data-label="Avg after POD">${fmtAvgDays(v.avgPod)}</td>
     <td data-label="Avg after Bill Date" style="font-weight:700;">${fmtAvgDays(v.avgBill)}</td>
   </tr>`).join('') : '<tr><td colspan="6" class="empty">Abhi tak koi paid bill nahi mila jisse turnaround nikal sakein</td></tr>';
+  dashboardExportData.turnaroundPartyRows = partyRows;
+  renderSummaryStrip('turnaroundPartySummary', [
+    { label:'Total Parties', value: partyRows.length || null },
+    { label:'Total Bills Paid', value: partyRows.length ? partyRows.reduce((s,v)=>s+v.count,0) : null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 
   // ---- Bill-wise detail: latest payment sabse upar ----
   const detailRows = rows.slice().sort((a,b)=> (b.payDate||'').localeCompare(a.payDate||''));
@@ -1730,6 +2329,11 @@ function renderTurnaround(){
     <td data-label="Days after POD">${r.dPod!=null?r.dPod:'—'}</td>
     <td data-label="Days after Bill Date" style="font-weight:700;">${r.dBill!=null?r.dBill:'—'}</td>
   </tr>`).join('') : '<tr><td colspan="8" class="empty">Abhi tak koi paid bill nahi mila</td></tr>';
+  dashboardExportData.turnaroundDetailRows = detailRows;
+  renderSummaryStrip('turnaroundDetailSummary', [
+    { label:'Total Bills', value: detailRows.length || null },
+    { label:'Last Updated', value: nowTimeStr() }
+  ]);
 }
 
 updateComputedFields();
