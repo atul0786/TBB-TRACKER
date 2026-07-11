@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TBB Recovery Tracker</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   /* =========================================================
@@ -60,6 +59,13 @@
   .brand h1{font-size:20px;margin:0;letter-spacing:-0.02em;font-weight:800;}
   .brand span.sub{color:var(--slate);font-size:12.5px;}
   .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:4px;flex-wrap:wrap;box-shadow:var(--shadow-xs);}
+  .conn-status{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:6px 10px;box-shadow:var(--shadow-xs);white-space:nowrap;}
+  .conn-status .conn-dot{width:8px;height:8px;border-radius:50%;background:var(--slate);flex:none;}
+  .conn-status.connected .conn-dot{background:var(--green);box-shadow:0 0 0 3px var(--green-soft);}
+  .conn-status.not-connected .conn-dot{background:var(--rust);box-shadow:0 0 0 3px var(--rust-soft);}
+  .conn-status #connStatusText{font-size:11.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;}
+  .conn-status.connected #connStatusText{color:var(--green);}
+  .conn-status.not-connected #connStatusText{color:var(--rust);}
   .tab{border:none;background:transparent;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;white-space:nowrap;transition:background var(--fast) var(--ease),color var(--fast) var(--ease);}
   .tab:hover{color:var(--ink);background:var(--slate-soft);}
   .tab.active{background:var(--ink);color:#fff;box-shadow:var(--shadow-sm);}
@@ -273,6 +279,8 @@
     .brand span.sub{display:none;}
     .tabs{width:100%;gap:3px;padding:3px;}
     .tab{flex:1;text-align:center;padding:11px 8px;font-size:12.5px;min-height:40px;}
+    .conn-status{width:100%;justify-content:space-between;}
+    .conn-status #topRefreshBtn{min-height:36px;}
     .card{padding:14px 12px;border-radius:var(--radius-md);}
     .card h2{font-size:13px;}
     .card-head{flex-direction:column;align-items:stretch;}
@@ -344,19 +352,20 @@
     <div class="tabs">
       <button class="tab active" data-tab="entries">Entries</button>
       <button class="tab" data-tab="ledger">Party Ledger</button>
+      <button class="tab" data-tab="payments">Payments</button>
       <button class="tab" data-tab="parties">Party Master</button>
       <button class="tab" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="turnaround">Payment Turnaround</button>
+      <button class="tab" data-tab="connection">🔗 Connection</button>
+    </div>
+    <div class="conn-status" id="connStatusWidget" role="status" aria-live="polite">
+      <span class="conn-dot" id="connDot"></span>
+      <span id="connStatusText">Not Connected</span>
+      <button class="btn btn-ghost btn-sm" id="topRefreshBtn" title="Google Sheet se latest data laayein">🔄 Refresh</button>
     </div>
   </div>
 
-  <div id="setupWarning" class="setup-warning" style="display:none;">
-    ⚠️ Setup baaki hai: is file ke <code>&lt;script&gt;</code> section me sabse upar
-    <code>SUPABASE_URL</code> aur <code>SUPABASE_ANON_KEY</code> apni Supabase project ki daalein.
-    (README.md me pura tarika likha hai.)
-  </div>
-
-  <div class="shared-note">🔗 Ye data Supabase (PostgreSQL) me save hota hai — link jisके paas bhi hai, wo live data dekh/edit kar sakta hai, page band-chalu karne se data nahi jaata.</div>
+  <div class="shared-note">🔗 Ye data aapke Google Sheet me save hota hai — link jiske paas bhi hai, wo live data dekh/edit kar sakta hai, page band-chalu karne se data nahi jaata.</div>
 
   <div id="errBox"></div>
 
@@ -569,6 +578,15 @@
       </div>
       </details>
 
+      <details class="form-section" open>
+      <summary class="section-label">Opening Balance</summary>
+      <div class="desc" style="margin:-4px 0 var(--sp-3);">Purane system se carry-forward hua bakaya (jaise 31-Dec-2025 tak jo bhi outstanding tha) — ye ek normal pending "bill" ki tarah treat hoga: Ledger, Pending by Party, Party-wise Month Report sabme apne aap count hoga. Naya balance aane par yahi amount update kar dein — dobara add nahi hoga.</div>
+      <div class="form-grid">
+        <div class="field"><label>Opening Balance Amount (₹)</label><input type="text" id="p-openingbalance" placeholder="e.g. 25000 — khaali chhodein agar nahi hai"></div>
+        <div class="field"><label>As of Date</label><input type="date" id="p-openingbalancedate"></div>
+      </div>
+      </details>
+
       <div class="btn-row" style="justify-content:flex-start;align-items:center;gap:10px;">
         <button class="btn btn-ghost btn-sm" id="importPartiesFromDbBtn">Add from Database</button>
         <button class="btn btn-ghost" id="partyCancelBtn" style="display:none;">Cancel</button>
@@ -620,8 +638,64 @@
             <tbody id="ledgerBody"></tbody>
           </table>
         </div>
+        <h3 style="margin:20px 0 8px;font-size:14px;">Payments Received</h3>
+        <div class="desc" style="margin-bottom:8px;">Har payment aur wo kis-kis bill mein kitna allocate hui — combined/split payments yahan poori tarah traceable hain.</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Payment Date</th><th>Amount</th><th>TDS</th><th>Mode</th><th>Reference</th><th>Applied To Bills</th></tr></thead>
+            <tbody id="ledgerPaymentsBody"></tbody>
+          </table>
+        </div>
       </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ PAYMENTS ============ -->
+  <div class="panel" id="panel-payments">
+    <div class="card">
+      <div class="card-head">
+        <div><h2>Record Payment</h2><div class="desc">Ek party se aayi ek payment yahan record karein — agar us party ke ek se zyada bills pending hain, to aap decide kar sakte ho ye payment kis-kis bill mein kitna jaayega (partial/split payments ke liye).</div></div>
+      </div>
+      <div class="rule"></div>
+      <div class="form-grid">
+        <div class="field wide">
+          <label>Party</label>
+          <select id="pay-party"><option value="">— Party select karein —</option></select>
+        </div>
+        <div class="field"><label>Payment Date</label><input type="date" id="pay-date"></div>
+        <div class="field"><label>Payment Amount (received, ₹)</label><input type="number" id="pay-amount" min="0" step="0.01" placeholder="e.g. 3500"></div>
+        <div class="field"><label>TDS Deducted (₹)</label><input type="number" id="pay-tds" min="0" step="0.01" placeholder="agar party ne kaata ho, warna 0"></div>
+        <div class="field"><label>Payment Mode</label><input type="text" id="pay-mode" placeholder="NEFT / Cheque / UPI…"></div>
+        <div class="field"><label>Reference / UTR</label><input type="text" id="pay-refno"></div>
+        <div class="field wide"><label>Remarks</label><input type="text" id="pay-remarks"></div>
+      </div>
+      <div id="payAllocationBox" style="display:none;margin-top:14px;">
+        <div class="desc" style="margin-bottom:8px;">Is party ke pending bills — oldest sabse upar. Agar TDS Deducted bhara hai, to bills me <b>Payment Amount + TDS</b> dono jodkar poora allocate karna hoga (kyunki TDS bhi bill ka hissa settle karta hai, government ko jama hokar). Amount edit karke manually split kar sakte hain; jo bhi total abhi allocate nahi hua wo neeche "Unallocated" mein dikhega, aur Save tabhi hoga jab Unallocated = ₹0 ho.</div>
+        <div class="summary-strip" id="paySettlementNote" style="margin-bottom:10px;"></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Bill #</th><th>Period</th><th>Bill Date</th><th>Net Amount</th><th>Already Pending</th><th style="min-width:140px;">Apply Amount</th></tr></thead>
+            <tbody id="payAllocBody"></tbody>
+          </table>
+        </div>
+        <div class="stat-row" id="payAllocSummary" style="margin-top:10px;"></div>
+      </div>
+      <div id="payFormEmpty" class="empty" style="display:none;">Is party ka koi pending bill nahi mila — pehle party select karein.</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="paySaveBtn">Save Payment</button>
+        <button class="btn btn-ghost" id="payCancelBtn" style="display:none;">Cancel Edit</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div><h2>Payment History</h2><div class="desc">Sabhi record ki gayi payments — kis-kis bill mein kitna gaya, breakdown ke saath.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;"><select id="payHistoryPartyFilter" style="min-width:200px;"><option value="">— All Parties —</option></select></div>
+      </div>
+      <div class="rule"></div>
+      <div id="payHistoryEmpty" class="empty" style="display:none;">Abhi tak koi payment record nahi hui.</div>
+      <div id="payHistoryList"></div>
     </div>
   </div>
 
@@ -749,16 +823,55 @@
     </div>
   </div>
 
-  <div class="footer-note">PostgreSQL (Supabase) database · No manual reports needed — everything above updates as you add entries</div>
+  <!-- ============ CONNECTION (Google Sheet setup — the ONE place this lives) ============ -->
+  <div class="panel" id="panel-connection">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2 id="connectBarTitle">🔗 Google Sheet Connect Karein</h2>
+          <div class="desc" id="connectBarDesc">Apni Google Apps Script Web App URL yahan paste karke "Connect" dabayein — ek baar karne ke baad hamesha yaad rahega (is browser me), dobara paste karne ki zaroorat nahi. Har page par ye dobara karne ki zaroorat nahi — ye setting poori app ke liye ek hi baar hoti hai.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="connectBarActions"></div>
+      </div>
+      <div class="form-grid" id="connectFormRow" style="margin-top:var(--sp-4);">
+        <div class="field" style="grid-column:span 3;">
+          <label>Google Apps Script Web App URL</label>
+          <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/XXXXXXXX/exec" autocomplete="off">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="connectBtn">Connect</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Kaise kaam karta hai</h2>
+      <div class="desc">Chhota sa reminder.</div>
+      <div class="rule"></div>
+      <ul style="font-size:13px;color:var(--ink);line-height:1.9;margin:0;padding-left:20px;">
+        <li>Ye connection sirf <b>ek baar</b> karni hai — is browser me hamesha ke liye save ho jaati hai</li>
+        <li>Har page/tab ke upar-right corner me ek chhota <b>🔄 Refresh</b> button hamesha milega — naya data dekhna ho to sirf wahi dabayein</li>
+        <li>Poori file dobara kholne ya is Connection tab par wapas aane ki zaroorat nahi refresh ke liye</li>
+        <li>Kisi doosre Google Sheet se connect karna ho to yahan wapas aakar "Change URL" use karein</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-note">Google Sheets database · No manual reports needed — everything above updates as you add entries</div>
 </div>
 
 <script>
 // ===================================================================
-// YAHAN APNI SUPABASE DETAILS DAALEIN (README.md me tarika likha hai)
+// GOOGLE SHEET CONNECTION — ab file edit karne ki zaroorat nahi. URL
+// browser ki localStorage me save hoti hai, isliye ek baar "Connect"
+// dabane ke baad wo isi browser me hamesha yaad rehti hai (page reload,
+// band-chalu — kuch bhi karein, dobara paste nahi karna padega). Har
+// browser/computer alag hai, isliye agar kisi doosre device/browser me
+// kholenge, wahan pehli baar phir se Connect karna padega — ye normal hai.
 // ===================================================================
-const SUPABASE_URL = "https://hrhqygzzmjeqlbvhlagl.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_FZSnQb2hSWOYd8vAnRexzQ_jMCAFnoN";
-// ===================================================================
+const GAS_URL_STORAGE_KEY = 'tbb_gas_url';
+function getGasUrl(){ try{ return localStorage.getItem(GAS_URL_STORAGE_KEY) || ''; }catch(e){ return ''; } }
+function setGasUrl(url){ try{ localStorage.setItem(GAS_URL_STORAGE_KEY, url); }catch(e){ /* private-browsing ya storage disabled — Connect button ka apna error handling ise cover karega */ } }
 
 // ---- COLLAPSIBLE REPORT CARDS ----
 // Generic, reusable: any button with class "collapse-toggle" and a
@@ -790,32 +903,94 @@ document.querySelectorAll('.tab').forEach(t=>{
     if(t.dataset.tab==='dashboard' && typeof renderDashboard==='function') renderDashboard();
     if(t.dataset.tab==='ledger' && typeof renderLedger==='function') renderLedger();
     if(t.dataset.tab==='turnaround' && typeof renderTurnaround==='function') renderTurnaround();
+    if(t.dataset.tab==='payments' && typeof renderPaymentsTab==='function') renderPaymentsTab();
   });
 });
 
-const hasSupabaseLib = typeof window.supabase !== 'undefined';
 const hasXlsxLib = typeof XLSX !== 'undefined';
-const isConfigured = !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
+// NOTE: `let`, not `const` — connecting via the Connect box updates this
+// at runtime without needing a page reload.
+let isConfigured = !!getGasUrl();
 
-let sb = null;
-if(!hasSupabaseLib){
-  document.getElementById('setupWarning').style.display='block';
-  document.getElementById('setupWarning').innerHTML = '⚠️ Supabase library load nahi hui (internet slow hai ya browser/ad-blocker/Brave Shields ne CDN script ko block kar diya). Page reload karein, ya Brave Shields icon (address bar me) se "Shields Down" is site ke liye kar dein.';
-} else if(!isConfigured){
-  document.getElementById('setupWarning').style.display='block';
-} else {
-  try{
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }catch(e){
-    document.getElementById('setupWarning').style.display='block';
-    document.getElementById('setupWarning').innerHTML = '⚠️ Supabase connect nahi ho paya: '+(e.message||e);
-  }
-}
 if(!hasXlsxLib){
   console.warn('XLSX library load nahi hui — Import/Export/Template buttons kaam nahi karenge jab tak library load na ho.');
 }
 
+// ---- Connect / Refresh bar wiring ----
+function renderConnectBar(){
+  const url = getGasUrl();
+  const actions = el('connectBarActions');
+  const formRow = el('connectFormRow');
+  const widget = el('connStatusWidget');
+  if(url){
+    el('connectBarTitle').textContent = '🟢 Google Sheet Connected';
+    el('connectBarDesc').textContent = 'Data seedha aapke Google Sheet se aa-ja raha hai. Kisi aur ne naya data add kiya ho to "Refresh Data" dabayein.';
+    formRow.style.display = 'none';
+    actions.innerHTML = '<button class="btn btn-ghost btn-sm" id="refreshDataBtn">🔄 Refresh Data</button><button class="btn btn-ghost btn-sm" id="changeUrlBtn">Change URL</button>';
+    el('refreshDataBtn').addEventListener('click', async ()=>{
+      const btn = el('refreshDataBtn');
+      btn.disabled = true; btn.textContent = 'Refreshing…';
+      await loadAll();
+      btn.disabled = false; btn.textContent = '🔄 Refresh Data';
+      showOk('Data refresh ho gaya.');
+    });
+    el('changeUrlBtn').addEventListener('click', ()=>{
+      el('gasUrlInput').value = url;
+      formRow.style.display = '';
+      actions.innerHTML = '<button class="btn btn-ghost btn-sm" id="cancelChangeBtn">Cancel</button>';
+      el('cancelChangeBtn').addEventListener('click', renderConnectBar);
+    });
+    widget.classList.add('connected'); widget.classList.remove('not-connected');
+    el('connStatusText').textContent = 'Connected';
+  } else {
+    el('connectBarTitle').textContent = '🔗 Google Sheet Connect Karein';
+    el('connectBarDesc').textContent = 'Apni Google Apps Script Web App URL yahan paste karke "Connect" dabayein — ek baar karne ke baad hamesha yaad rahega (is browser me).';
+    formRow.style.display = '';
+    actions.innerHTML = '';
+    widget.classList.add('not-connected'); widget.classList.remove('connected');
+    el('connStatusText').textContent = 'Not Connected';
+  }
+}
+// Connect button wiring + initial renderConnectBar() call moved to the
+// bottom of the script (after `el`/`showErr`/`showOk`/`loadAll` are
+// defined) — see near the very end, next to loadAll().
+
+// ===================================================================
+// GOOGLE SHEETS API BRIDGE
+// Har request Apps Script Web App ko POST se jaati hai, ek "action"
+// field ke saath. Content-Type ko jaan-boojh kar 'text/plain' rakha
+// hai — 'application/json' use karne se browser ek CORS "preflight"
+// (OPTIONS) request bhejta hai jise Apps Script Web Apps by default
+// handle nahi karte, jisse request fail ho jaati. text/plain "simple
+// request" maana jaata hai, isliye preflight skip ho jaata hai — Apps
+// Script side par hum khud JSON.parse() kar lete hain.
+// ===================================================================
+async function gsRequest(action, payload){
+  if(!isConfigured) throw new Error('Google Sheet se connect nahi hai — upar "Connect" box se URL daalein.');
+  let res;
+  try{
+    res = await fetch(getGasUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action }, payload))
+    });
+  }catch(networkErr){
+    throw new Error('Google Sheet tak network request nahi pahunch payi. Internet check karein. ('+(networkErr.message||networkErr)+')');
+  }
+  let data;
+  try{ data = await res.json(); }
+  catch(parseErr){ throw new Error('Google Apps Script se sahi response nahi mila — Deployment settings check karein (Execute as: Me, Who has access: Anyone).'); }
+  if(!data.ok) throw new Error(data.error || 'Google Sheet backend se unknown error.');
+  return data.result;
+}
+
+
 let entries = [];
+// Payments = one real payment event; allocations = how that payment's amount
+// is split across one or more bills. See calcAllocatedForBill/entryPendingAmount.
+let payments = [];
+let allocations = [];
+let editingPaymentId = null;
 // MODULE 4 — holds the exact same computed rows renderDashboard() displays,
 // so each report's Export button always exports what's on screen (single
 // source of truth, no duplicate calculation logic).
@@ -1023,10 +1198,44 @@ function normDate(v){
 // ---------------- STATUS AUTO-CALCULATION ----------------
 function calcNetAmount(amount, gst, tds){ return (toNumOrNull(amount)||0) + (toNumOrNull(gst)||0) - (toNumOrNull(tds)||0); }
 function calcPendingAmount(netAmount, paymentAmount, payDate){
+  // Legacy path — used only for bills that have NO PaymentAllocations rows
+  // (i.e. old data saved before the Payments/allocation system existed, or
+  // a bill that still uses the simple single "Payment Date/Amount" fields).
   // Agar Payment Date bhari hai lekin Payment Amount khali hai, to full-paid maana jaata hai (backward compatible).
   const numPaid = toNumOrNull(paymentAmount);
   const paid = (numPaid!==null) ? numPaid : (payDate ? netAmount : 0);
   return netAmount - paid;
+}
+// PARTIAL PAYMENT SUPPORT — a party's single payment can be split across
+// several bills (see the "Payments" tab). Everywhere the app needs a bill's
+// pending amount, it should go through entryPendingAmount() so allocation
+// data (when present) always wins over the legacy per-bill Payment Amount.
+function getAllocatedForBill(billId){
+  return allocations.filter(a=>a.billId===billId).reduce((s,a)=>s+(Number(a.amountApplied)||0), 0);
+}
+function billHasAllocations(billId){
+  return allocations.some(a=>a.billId===billId);
+}
+// BUGFIX: Payment Turnaround Analysis pehle sirf bill ke apne purane "Payment Date"
+// field (e.payDate) ko dekhta tha — agar koi bill sirf Payments tab (split/partial
+// payment allocations) se fully clear hua ho, to uska payDate kabhi bharta hi nahi,
+// isliye wo bill Turnaround report se poori tarah GHAYAB ho jaata tha (na party-wise
+// average me, na bill-wise detail me). Ye helper "effective" payment date deta hai:
+// agar bill ke allocations hain to un allocations wali payments me se sabse RECENT
+// (latest) date — jis din bill poora clear hua — warna bill ka apna legacy payDate.
+function getEffectivePayDate(e){
+  if(billHasAllocations(e.id)){
+    const dates = allocations.filter(a=>a.billId===e.id)
+      .map(a=>{ const p = payments.find(pp=>pp.id===a.paymentId); return p ? p.date : null; })
+      .filter(Boolean);
+    if(dates.length) return dates.sort().slice(-1)[0];
+  }
+  return e.payDate || null;
+}
+function entryPendingAmount(e, net){
+  const netAmt = (net!=null) ? net : ((e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds));
+  if(billHasAllocations(e.id)) return netAmt - getAllocatedForBill(e.id);
+  return calcPendingAmount(netAmt, e.paymentAmount, e.payDate);
 }
 function statusKey(label){ return label.toLowerCase().replace(/[^a-z]/g,''); }
 // "Closed" statuses ka matlab hai bill ab active recovery cycle me nahi hai —
@@ -1035,9 +1244,9 @@ function isClosedStatus(e){ return ['Cancelled','Disputed','Rejected'].includes(
 function computeStatusAuto(entry){
   if(entry.statusOverride){ return entry.statusOverride; }
   const net = (entry.netAmount!==undefined && entry.netAmount!==null) ? Number(entry.netAmount) : calcNetAmount(entry.amount, entry.gstAmount, entry.tds);
-  const pending = (entry.pendingAmount!==undefined && entry.pendingAmount!==null) ? Number(entry.pendingAmount) : calcPendingAmount(net, entry.paymentAmount, entry.payDate);
+  const pending = entryPendingAmount(entry, net);
   const paymentAmtNum = toNumOrNull(entry.paymentAmount);
-  const hasSomePayment = (paymentAmtNum!==null && paymentAmtNum>0) || !!entry.payDate;
+  const hasSomePayment = billHasAllocations(entry.id) || (paymentAmtNum!==null && paymentAmtNum>0) || !!entry.payDate;
   if(hasSomePayment && pending<=0) return 'Paid';
   if(hasSomePayment && pending>0) return 'Partially Paid';
   if(entry.submitDate) return 'Payment Pending';
@@ -1073,35 +1282,29 @@ function getBranchLabel(p){
 
 // ---------------- DATA LOAD ----------------
 async function loadAll(){
-  if(!isConfigured || !sb){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Setup pehle poora karein.'; return; }
+  if(!isConfigured){ el('entryBody').innerHTML=''; el('emptyState').style.display='block'; el('emptyState').textContent='Upar "Connect" box se Google Sheet URL daalein.'; return; }
   el('entryBody').innerHTML = '<tr><td colspan="15" class="loading">Loading entries…</td></tr>';
   try{
-    const [{ data:bills, error:e1 }, { data:pm, error:e2 }] = await Promise.all([
-      sb.from('bills').select('*').order('bill_date', { ascending:false }),
-      sb.from('party_master').select('*').order('party', { ascending:true })
-    ]);
-    if(e1) throw e1;
-    if(e2) throw e2;
-    entries = bills.map(r=>({ id:r.id, party:r.party, billNumber:r.bill_number, invoiceNumber:r.invoice_number, billPeriod:r.bill_period, amount:r.amount,
-      gstAmount:r.gst_amount, tds:r.tds, netAmount:r.net_amount, pendingAmount:r.pending_amount,
-      billDate:r.bill_date, uploadedDate:r.bill_uploaded_date, emailDate:r.email_date, hardcopyDate:r.hardcopy_date,
-      submitDate:r.submit_date, expectedPayDate:r.expected_payment_date, mode:r.mode, actualDate:r.actual_date, payDate:r.pay_date,
-      paymentAmount:r.payment_amount, paymentMode:r.payment_mode, cheque:r.cheque_number, utr:r.utr_number, refNo:r.reference_number,
-      remarks:r.remarks, statusOverride:r.status_override }));
-    parties = pm.map(r=>({ id:r.id, party:r.party, mode:r.default_mode, notes:r.notes,
-      code:r.party_code, gst:r.gst_no, pan:r.pan, address:r.address, state:r.state, city:r.city, branch:r.branch, zone:r.zone,
-      contact:r.contact_person, mobile:r.mobile, email:r.email, altEmail:r.alternate_email, accEmail:r.accounts_email, recEmail:r.recovery_email,
-      cycle:r.payment_cycle, cycleDays:r.payment_cycle_custom_days, requiredDocs:r.required_documents||[], autoReminder:r.auto_reminder,
-      remFreq:r.reminder_frequency, creditLimit:r.credit_limit, outstandingLimit:r.outstanding_limit, blocked:r.blocked, holdReason:r.hold_reason }));
+    // NOTE: our Google Apps Script backend already returns objects using
+    // the exact same camelCase field names the app uses internally
+    // (billNumber, gstAmount, uploadedDate, etc.) — so no field-mapping
+    // step is needed here, unlike the old Supabase snake_case mapping.
+    const { bills, parties: pm, payments: py, allocations: al } = await gsRequest('listAll', {});
+    entries = (bills||[]).slice().sort((a,b)=> (b.billDate||'').localeCompare(a.billDate||''));
+    parties = (pm||[]).slice().sort((a,b)=> (a.party||'').localeCompare(b.party||''));
+    payments = (py||[]).slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+    allocations = al||[];
   }catch(e){
-    showErr('Data load nahi hua — Supabase URL/Key check karein. ('+ (e.message||e) +')');
-    entries = []; parties = [];
+    showErr('Data load nahi hua — Google Sheet / Apps Script URL check karein. ('+ (e.message||e) +')');
+    entries = []; parties = []; payments = []; allocations = [];
   }
   populatePeriodFilter();
   populateLedgerPartySelect();
   populateBranchFilter();
-  render();
+  populatePaymentsPartySelects();
+  renderAll();
   renderParties();
+  if(document.getElementById('panel-payments')?.classList.contains('active')) renderPaymentsTab();
 }
 
 function populatePeriodFilter(){
@@ -1123,7 +1326,7 @@ function populatePeriodFilter(){
     return `<label><input type="checkbox" value="${safe}" ${checked}> ${safe}</label>`;
   }).join('');
   // wire checkbox change -> re-render
-  Array.from(container.querySelectorAll('input[type=checkbox]')).forEach(cb=>cb.addEventListener('change', ()=>{ render(); }));
+  Array.from(container.querySelectorAll('input[type=checkbox]')).forEach(cb=>cb.addEventListener('change', ()=>{ renderAll(); }));
 }
 
 function populateBranchFilter(){
@@ -1191,7 +1394,7 @@ function renderLedger(){
   rows = rows.sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
   const withCalc = rows.map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-    const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+    const pending = entryPendingAmount(e, net);
     return {...e, net, pending};
   });
   const totalBilled = withCalc.reduce((s,e)=>s+e.net,0);
@@ -1215,12 +1418,25 @@ function renderLedger(){
     running += isClosedStatus(e) ? 0 : e.pending;
     const status = computeStatusAuto(e);
     return `<tr>
-      <td class="name-cell" data-label="Bill #">${escapeHtml(e.billNumber||'—')}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Bill Date">${fmtDate(e.billDate)}</td>
+      <td class="name-cell" data-label="Bill #">${escapeHtml(e.billNumber||'—')}${e.billType==='Opening Balance'?' <span class="badge" style="background:var(--slate-soft);color:var(--slate);">Opening Bal.</span>':''}</td><td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Bill Date">${fmtDate(e.billDate)}</td>
       <td data-label="Mode"><span class="badge mode">${escapeHtml(e.mode||'—')}</span></td><td data-label="Submitted">${fmtDate(e.submitDate)}</td>
       <td data-label="Amount">${fmtMoney(e.net)}</td><td data-label="Payment Date">${fmtDate(e.payDate)}</td>
       <td data-label="Status"><span class="badge status-${statusKey(status)}">${status}</span></td>
       <td data-label="Running Balance" style="font-weight:700;">${fmtMoney(running)}</td></tr>`;
   }).join('') : '<tr><td colspan="9" class="empty">Is party ka koi bill nahi mila</td></tr>';
+
+  const partyPayments = payments.filter(p=>p.party===party).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el('ledgerPaymentsBody').innerHTML = partyPayments.length ? partyPayments.map(p=>{
+    const allocs = allocations.filter(a=>a.paymentId===p.id);
+    const breakdown = allocs.map(a=>{
+      const bill = entries.find(e=>e.id===a.billId);
+      return `${escapeHtml(bill ? (bill.billNumber||bill.billPeriod||'Bill') : 'Bill')}: ${fmtMoney(a.amountApplied)}`;
+    }).join(', ') || '—';
+    return `<tr><td data-label="Payment Date">${fmtDate(p.date)}</td><td data-label="Amount">${fmtMoney(p.amount)}</td>
+      <td data-label="TDS">${p.tds ? fmtMoney(p.tds) : '—'}</td>
+      <td data-label="Mode">${escapeHtml(p.mode||'—')}</td><td data-label="Reference">${escapeHtml(p.refNo||'—')}</td>
+      <td data-label="Applied To Bills">${breakdown}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">Is party ki koi payment record nahi hui</td></tr>';
 }
 
 // ---------------- PARTY AUTOCOMPLETE + AUTO-FILL ----------------
@@ -1283,21 +1499,31 @@ async function saveEntry(entry){
     throw new Error('Payment Amount valid number hona chahiye (jaise 45000).');
   }
   if(entry.payDate && paymentAmount===null) paymentAmount = netAmt;
-  const row = { party: entry.party, bill_number: entry.billNumber || null, invoice_number: entry.invoiceNumber || null,
-    bill_period: entry.billPeriod, amount: toNumOrNull(entry.amount), gst_amount: toNumOrNull(entry.gstAmount) || 0, tds: toNumOrNull(entry.tds) || 0,
-    bill_date: entry.billDate || null, bill_uploaded_date: entry.uploadedDate || null,
-    email_date: entry.emailDate || null, hardcopy_date: entry.hardcopyDate || null,
-    submit_date: entry.submitDate || null, expected_payment_date: entry.expectedPayDate || null, mode: entry.mode,
-    actual_date: entry.actualDate || null, pay_date: entry.payDate || null,
-    payment_amount: paymentAmount, payment_mode: entry.paymentMode || null, cheque_number: entry.cheque || null,
-    utr_number: entry.utr || null, reference_number: entry.refNo || null, remarks: entry.remarks || null,
-    status_override: entry.statusOverride || null };
-  if(editingId){ const { error } = await sb.from('bills').update(row).eq('id', editingId); if(error) throw error; }
-  else { const { error } = await sb.from('bills').insert(row); if(error) throw error; }
+  const row = { party: entry.party, billNumber: entry.billNumber || null, invoiceNumber: entry.invoiceNumber || null,
+    billPeriod: entry.billPeriod, amount: toNumOrNull(entry.amount), gstAmount: toNumOrNull(entry.gstAmount) || 0, tds: toNumOrNull(entry.tds) || 0,
+    billDate: entry.billDate || null, uploadedDate: entry.uploadedDate || null,
+    emailDate: entry.emailDate || null, hardcopyDate: entry.hardcopyDate || null,
+    submitDate: entry.submitDate || null, expectedPayDate: entry.expectedPayDate || null, mode: entry.mode,
+    actualDate: entry.actualDate || null, payDate: entry.payDate || null,
+    paymentAmount: paymentAmount, paymentMode: entry.paymentMode || null, cheque: entry.cheque || null,
+    utr: entry.utr || null, refNo: entry.refNo || null, remarks: entry.remarks || null,
+    statusOverride: entry.statusOverride || null };
+  if(editingId){ await gsRequest('updateBill', { id: editingId, data: row }); }
+  else { await gsRequest('insertBill', { data: row }); }
 }
 async function deleteEntry(id){
+  // BUGFIX: pehle koi check nahi tha — ek bill delete karne se, agar uspar Payments
+  // tab se koi payment allocate ho chuki thi, wo allocation rows "orphan" (dangling
+  // billId reference) ban jaati thi — party ki payment history/ledger silently
+  // corrupt ho jaati. Ab pehle check karte hain; agar allocation hai to delete
+  // block karke user ko Payments tab par bhejte hain (backend bhi isi ko dobara
+  // enforce karta hai, taaki direct API call se bhi bypass na ho sake).
+  if(billHasAllocations(id)){
+    showErr('Ye bill delete nahi ho sakta — isme Payments tab se payment allocate ho chuki hai. Pehle Payments tab me jaakar related payment ko edit/delete karein, phir bill delete karein.');
+    return;
+  }
   if(!confirm('Delete this entry?')) return;
-  try{ const { error } = await sb.from('bills').delete().eq('id', id); if(error) throw error; await loadAll(); }
+  try{ await gsRequest('deleteBill', { id }); await loadAll(); }
   catch(e){ showErr('Delete failed: '+(e.message||e)); }
 }
 const BILL_FORM_FIELDS = ['f-party','f-billnumber','f-invoiceno','f-period','f-amount','f-gst','f-tds','f-billdate','f-uploaddate',
@@ -1308,6 +1534,11 @@ function resetForm(){
   BILL_FORM_FIELDS.forEach(id=>el(id).value='');
   el('f-mode').value='Email Only'; el('f-paymode').value=''; el('f-statusoverride').value='';
   editingId=null; el('modeHintPill').style.display='none';
+  // BUGFIX: blocked-party warning banner (inserted dynamically by applyPartySelection)
+  // was never removed on reset — it used to stay stuck on screen after Save/Cancel
+  // even though the form no longer referred to that (or any) party.
+  document.getElementById('partyBlockedWarning')?.remove();
+  document.getElementById('billAllocatedNote')?.remove();
   el('formTitle').textContent='Add Bill Entry'; el('cancelEditBtn').style.display='none';
   updateComputedFields();
 }
@@ -1325,6 +1556,27 @@ function fillForm(entry){
   el('f-refno').value=entry.refNo||''; el('f-remarks').value=entry.remarks||''; el('f-statusoverride').value=entry.statusOverride||'';
   editingId=entry.id; el('formTitle').textContent='Edit Bill Entry';
   el('cancelEditBtn').style.display='inline-block';
+  // BUGFIX: previously the blocked-party warning only appeared when a party was
+  // picked from the autocomplete list — editing an existing bill for a blocked
+  // party silently showed nothing. We reuse applyPartySelection's warning logic
+  // here (without re-triggering mode auto-fill, since the bill already has its
+  // own saved mode) so the warning is consistent everywhere a party is in the form.
+  document.getElementById('partyBlockedWarning')?.remove();
+  const match = parties.find(p=>p.party.toLowerCase()===String(entry.party||'').toLowerCase());
+  if(match && match.blocked){
+    const w = document.createElement('div');
+    w.id='partyBlockedWarning'; w.className='blocked-warning';
+    w.textContent = '⚠️ Ye party BLOCKED hai' + (match.holdReason ? ' — Reason: '+match.holdReason : '') + '. Is bill ko edit/save karne se pehle confirm kar lein.';
+    partyInput.closest('.field').after(w);
+  }
+  document.getElementById('billAllocatedNote')?.remove();
+  if(billHasAllocations(entry.id)){
+    const n = document.createElement('div');
+    n.id='billAllocatedNote'; n.className='blocked-warning';
+    n.style.background='var(--slate-soft)'; n.style.color='var(--ink)';
+    n.textContent = 'ℹ️ Is bill ko Payments tab se ₹'+getAllocatedForBill(entry.id).toLocaleString('en-IN')+' allocate ho chuka hai — pending amount ab wahi se calculate hota hai (neeche Payment Date/Amount fields is bill ke liye ignore ho jaate hain). Payment edit/remove karne ke liye Payments tab use karein.';
+    partyInput.closest('.field').after(n);
+  }
   updateComputedFields();
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -1332,10 +1584,24 @@ function updateComputedFields(){
   const amount = el('f-amount').value, gst = el('f-gst').value, tds = el('f-tds').value;
   const net = calcNetAmount(amount, gst, tds);
   el('f-netamount-display').textContent = fmtMoney(net);
-  const pending = calcPendingAmount(net, el('f-paymentamount').value, el('f-paydate').value);
+  // If this bill already has payments recorded via the Payments tab (allocations),
+  // those are the source of truth for pending amount — the old single Payment
+  // Amount/Date fields on this form are ignored for such bills (kept read-only-ish
+  // in effect) so the two systems never disagree about how much is still pending.
+  const pending = (editingId && billHasAllocations(editingId))
+    ? (net - getAllocatedForBill(editingId))
+    : calcPendingAmount(net, el('f-paymentamount').value, el('f-paydate').value);
   el('f-pending-display').textContent = fmtMoney(pending);
   el('f-pending-display').className = 'computed-field ' + (pending<=0 ? 'green' : 'rust');
-  const st = computeStatusAuto({ netAmount:net, pendingAmount:pending, paymentAmount:el('f-paymentamount').value, payDate:el('f-paydate').value,
+  // BUGFIX: pehle yahan "id" pass nahi hota tha, isliye computeStatusAuto() apna
+  // internal pending amount hamesha calcPendingAmount() (legacy Payment Date/Amount
+  // fields) se nikalta tha — Payments tab se allocate ki gayi payments ko bilkul
+  // ignore kar deta tha. Result: kisi bill ko Payments tab se poora pay kar dene
+  // ke baad bhi, is form ko dobara kholne par Status badge "Payment Pending" ya
+  // "Email Sent" jaisa GALAT dikhata tha, jabki bagal wala Pending Amount box sahi
+  // (₹0, green) dikha raha hota tha. Ab id: editingId pass karke dono cheezein
+  // (badge + pending box) hamesha same allocation-aware calculation use karte hain.
+  const st = computeStatusAuto({ id: editingId, netAmount:net, pendingAmount:pending, paymentAmount:el('f-paymentamount').value, payDate:el('f-paydate').value,
     submitDate:el('f-submitdate').value, hardcopyDate:el('f-hardcopydate').value, emailDate:el('f-emaildate').value, statusOverride:el('f-statusoverride').value });
   el('f-status-badge').innerHTML = `<span class="badge status-${statusKey(st)}">${st}</span>`;
 }
@@ -1344,10 +1610,21 @@ function updateComputedFields(){
   el(id).addEventListener('change', updateComputedFields);
 });
 el('saveBtn').addEventListener('click', async ()=>{
-  if(!isConfigured || !sb){ showErr('Pehle Supabase setup poora karein.'); return; }
+  if(!isConfigured){ showErr('Pehle upar "Connect" box se Google Sheet URL daalein.'); return; }
   const party = el('f-party').value.trim();
   if(!party){ showErr('Party name is required.'); return; }
-  const entry = { party, billNumber: el('f-billnumber').value.trim(), invoiceNumber: el('f-invoiceno').value.trim(),
+  // BUGFIX: duplicate Bill Number check pehle sirf Excel bulk-import me tha —
+  // manual "Save Entry" se koi bhi existing Bill Number dobara save ho sakta
+  // tha, jisse ek hi bill do baar ban jaata. Ab yahan bhi wahi (case-insensitive,
+  // trimmed) check lagate hain — editingId wali row ko khud se compare nahi karte,
+  // taaki ek existing bill ko dobara save karna (bina bill number badle) fail na ho.
+  const billNumberVal = el('f-billnumber').value.trim();
+  if(billNumberVal){
+    const dupKey = billNumberVal.toLowerCase();
+    const isDup = entries.some(e => e.id!==editingId && (e.billNumber||'').toString().trim().toLowerCase()===dupKey);
+    if(isDup){ showErr('Ye Bill Number pehle se maujood hai — alag Bill Number use karein ya us existing bill ko edit karein.'); return; }
+  }
+  const entry = { party, billNumber: billNumberVal, invoiceNumber: el('f-invoiceno').value.trim(),
     billPeriod: el('f-period').value.trim(), amount: el('f-amount').value.trim(), gstAmount: el('f-gst').value.trim(), tds: el('f-tds').value.trim(),
     billDate: el('f-billdate').value, uploadedDate: el('f-uploaddate').value,
     submitDate: el('f-submitdate').value, expectedPayDate: el('f-expectedpaydate').value, mode: el('f-mode').value,
@@ -1364,20 +1641,45 @@ el('cancelEditBtn').addEventListener('click', resetForm);
 
 // ---------------- PARTY MASTER CRUD ----------------
 const PARTY_TEXT_FIELDS = ['p-name','p-code','p-gst','p-pan','p-address','p-state','p-city','p-branch','p-zone',
-  'p-contact','p-mobile','p-email','p-altemail','p-accemail','p-recemail','p-cycledays','p-creditlimit','p-outstandinglimit','p-holdreason','p-notes'];
+  'p-contact','p-mobile','p-email','p-altemail','p-accemail','p-recemail','p-cycledays','p-creditlimit','p-outstandinglimit','p-holdreason','p-notes',
+  'p-openingbalance','p-openingbalancedate'];
 
 async function savePartyRow(p){
-  const row = { party: p.party, default_mode: p.mode, notes: p.notes,
-    party_code: p.code||null, gst_no: p.gst||null, pan: p.pan||null, address: p.address||null, state: p.state||null, city: p.city||null,
-    branch: p.branch||null, zone: p.zone||null, contact_person: p.contact||null, mobile: p.mobile||null, email: p.email||null,
-    alternate_email: p.altEmail||null, accounts_email: p.accEmail||null, recovery_email: p.recEmail||null,
-    payment_cycle: p.cycle||null, payment_cycle_custom_days: p.cycleDays ? Number(p.cycleDays) : null,
-    required_documents: p.requiredDocs||[], auto_reminder: !!p.autoReminder, reminder_frequency: p.remFreq||null,
-    credit_limit: p.creditLimit ? Number(p.creditLimit) : null, outstanding_limit: p.outstandingLimit ? Number(p.outstandingLimit) : null,
-    blocked: !!p.blocked, hold_reason: p.holdReason||null };
-  if(editingPartyId){ const { error } = await sb.from('party_master').update(row).eq('id', editingPartyId); if(error) throw error; }
-  else { const { error } = await sb.from('party_master').upsert(row, { onConflict:'party' }); if(error) throw error; }
+  const row = { party: p.party, mode: p.mode, notes: p.notes,
+    code: p.code||null, gst: p.gst||null, pan: p.pan||null, address: p.address||null, state: p.state||null, city: p.city||null,
+    branch: p.branch||null, zone: p.zone||null, contact: p.contact||null, mobile: p.mobile||null, email: p.email||null,
+    altEmail: p.altEmail||null, accEmail: p.accEmail||null, recEmail: p.recEmail||null,
+    cycle: p.cycle||null, cycleDays: p.cycleDays ? Number(p.cycleDays) : null,
+    requiredDocs: p.requiredDocs||[], autoReminder: !!p.autoReminder, remFreq: p.remFreq||null,
+    creditLimit: p.creditLimit ? Number(p.creditLimit) : null, outstandingLimit: p.outstandingLimit ? Number(p.outstandingLimit) : null,
+    blocked: !!p.blocked, holdReason: p.holdReason||null,
+    // Preserve whatever opening-balance bill link this party already has —
+    // upsertOpeningBalance() (called right after this) may change it, in
+    // which case we persist the new value with one follow-up updateParty call.
+    openingBalanceBillId: p.openingBalanceBillId || null };
+  // Edit mode -> update the exact row by id (so renaming a party doesn't
+  // accidentally create a duplicate via name-matching). New-save mode ->
+  // upsert by party name (so re-saving an existing party name updates it
+  // instead of creating a duplicate row), matching the old Supabase behaviour.
+  if(editingPartyId){ await gsRequest('updateParty', { id: editingPartyId, data: row }); return editingPartyId; }
+  const res = await gsRequest('upsertParty', { data: row });
+  return res.id;
 }
+
+// Creates/updates/clears this party's "Opening Balance" bill row via the
+// backend's upsertOpeningBalance_(). If the resulting bill id differs from
+// what the party record currently has stored, persists the new link with a
+// follow-up updateParty call so future saves find the same bill again
+// (instead of creating a duplicate Opening Balance bill every time).
+async function syncOpeningBalance(partyId, partyName, existingBillId, amountStr, asOfDate){
+  const amount = amountStr ? toNumOrNull(amountStr) : 0;
+  const res = await gsRequest('upsertOpeningBalance', { party: partyName, existingBillId: existingBillId||'', amount: amount||0, asOfDate: asOfDate||'' });
+  const newBillId = res.billId || '';
+  if(newBillId !== (existingBillId||'')){
+    await gsRequest('updateParty', { id: partyId, data: { openingBalanceBillId: newBillId } });
+  }
+}
+
 function resetPartyForm(){
   PARTY_TEXT_FIELDS.forEach(id=>el(id).value='');
   el('p-mode').value='Email Only'; el('p-cycle').value='30 Days'; el('p-remfreq').value='Weekly';
@@ -1386,12 +1688,17 @@ function resetPartyForm(){
   editingPartyId=null; el('partyCancelBtn').style.display='none';
 }
 el('partySaveBtn').addEventListener('click', async ()=>{
-  if(!isConfigured || !sb){ showErr('Pehle Supabase setup poora karein.'); return; }
+  if(!isConfigured){ showErr('Pehle upar "Connect" box se Google Sheet URL daalein.'); return; }
   const name = el('p-name').value.trim();
   if(!name){ showErr('Party name is required.'); return; }
+  const openingBalanceStr = el('p-openingbalance').value.trim();
+  if(openingBalanceStr && toNumOrNull(openingBalanceStr)===null){ showErr('Opening Balance Amount valid number hona chahiye (jaise 25000).'); return; }
   const requiredDocs = Array.from(document.querySelectorAll('#p-docs-group input[type=checkbox]:checked')).map(cb=>cb.value);
   try{
-    await savePartyRow({ party:name, mode: el('p-mode').value, notes: el('p-notes').value.trim(),
+    // Existing opening-balance link (if editing a party that already has one).
+    const existingParty = editingPartyId ? parties.find(x=>x.id===editingPartyId) : null;
+    const existingOpeningBalanceBillId = existingParty ? (existingParty.openingBalanceBillId||'') : '';
+    const partyId = await savePartyRow({ party:name, mode: el('p-mode').value, notes: el('p-notes').value.trim(),
       code: el('p-code').value.trim(), gst: el('p-gst').value.trim(), pan: el('p-pan').value.trim(), address: el('p-address').value.trim(),
       state: el('p-state').value.trim(), city: el('p-city').value.trim(), branch: el('p-branch').value.trim(), zone: el('p-zone').value.trim(),
       contact: el('p-contact').value.trim(), mobile: el('p-mobile').value.trim(), email: el('p-email').value.trim(),
@@ -1399,19 +1706,25 @@ el('partySaveBtn').addEventListener('click', async ()=>{
       cycle: el('p-cycle').value, cycleDays: el('p-cycledays').value.trim(), requiredDocs,
       autoReminder: el('p-autoreminder').checked, remFreq: el('p-remfreq').value,
       creditLimit: el('p-creditlimit').value.trim(), outstandingLimit: el('p-outstandinglimit').value.trim(),
-      blocked: el('p-blocked').checked, holdReason: el('p-holdreason').value.trim() });
+      blocked: el('p-blocked').checked, holdReason: el('p-holdreason').value.trim(),
+      openingBalanceBillId: existingOpeningBalanceBillId });
+    await syncOpeningBalance(partyId, name, existingOpeningBalanceBillId, openingBalanceStr, el('p-openingbalancedate').value);
     resetPartyForm(); await loadAll(); showOk('Party map ho gayi.');
   }catch(e){ showErr('Save failed: '+(e.message||e)); }
 });
 el('partyCancelBtn').addEventListener('click', resetPartyForm);
 
 el('importPartiesFromDbBtn').addEventListener('click', async ()=>{
-  if(!isConfigured || !sb){ showErr('Pehle Supabase setup poora karein.'); return; }
+  if(!isConfigured){ showErr('Pehle upar "Connect" box se Google Sheet URL daalein.'); return; }
   const btn = el('importPartiesFromDbBtn');
   btn.disabled = true; btn.textContent = 'Scanning…';
   try{
-    const { data: bills, error } = await sb.from('bills').select('party, mode, bill_period, bill_date').order('party', { ascending: true });
-    if(error) throw error;
+    // NOTE: pehle ye ek fresh Supabase query karta tha (sirf party/mode/
+    // bill_period/bill_date columns). Ab entries[] (jo loadAll() se hamesha
+    // up-to-date rehta hai) seedha use karte hain — ek extra network call
+    // bachta hai, aur behavior bilkul same rehta hai kyunki entries[] hamesha
+    // is Sheet ka hi latest data hota hai.
+    const bills = entries.map(e=>({ party: e.party, mode: e.mode, billPeriod: e.billPeriod, billDate: e.billDate }));
     const map = new Map();
     const existingMap = new Map(parties.map(p=>[String(p.party).trim().toLowerCase(), p]));
     bills.forEach(r=>{
@@ -1423,49 +1736,48 @@ el('importPartiesFromDbBtn').addEventListener('click', async ()=>{
           party,
           mode: r.mode || 'Email Only',
           billCount: 0,
-          lastPeriod: r.bill_period || null,
-          lastBillDate: r.bill_date || null
+          lastPeriod: r.billPeriod || null,
+          lastBillDate: r.billDate || null
         });
       }
       const entry = map.get(key);
       entry.billCount += 1;
-      if(!entry.lastPeriod && r.bill_period) entry.lastPeriod = r.bill_period;
-      if(!entry.lastBillDate && r.bill_date) entry.lastBillDate = r.bill_date;
+      if(!entry.lastPeriod && r.billPeriod) entry.lastPeriod = r.billPeriod;
+      if(!entry.lastBillDate && r.billDate) entry.lastBillDate = r.billDate;
     });
     const rows = Array.from(map.values()).map(info=>{
       const existing = existingMap.get(info.party.toLowerCase());
       return {
         party: info.party,
-        default_mode: existing?.mode || info.mode || 'Email Only',
+        mode: existing?.mode || info.mode || 'Email Only',
         notes: existing?.notes || `Imported from database bills • ${info.billCount} bill(s)` + (info.lastPeriod ? ` • Last period: ${info.lastPeriod}` : ''),
-        party_code: existing?.code || null,
-        gst_no: existing?.gst || null,
+        code: existing?.code || null,
+        gst: existing?.gst || null,
         pan: existing?.pan || null,
         address: existing?.address || null,
         state: existing?.state || null,
         city: existing?.city || null,
         branch: existing?.branch || null,
         zone: existing?.zone || null,
-        contact_person: existing?.contact || null,
+        contact: existing?.contact || null,
         mobile: existing?.mobile || null,
         email: existing?.email || null,
-        alternate_email: existing?.altEmail || null,
-        accounts_email: existing?.accEmail || null,
-        recovery_email: existing?.recEmail || null,
-        payment_cycle: existing?.cycle || '30 Days',
-        payment_cycle_custom_days: existing?.cycleDays ? Number(existing.cycleDays) : null,
-        required_documents: existing?.requiredDocs || [],
-        auto_reminder: !!existing?.autoReminder,
-        reminder_frequency: existing?.remFreq || 'Weekly',
-        credit_limit: existing?.creditLimit ? Number(existing.creditLimit) : null,
-        outstanding_limit: existing?.outstandingLimit ? Number(existing.outstandingLimit) : null,
+        altEmail: existing?.altEmail || null,
+        accEmail: existing?.accEmail || null,
+        recEmail: existing?.recEmail || null,
+        cycle: existing?.cycle || '30 Days',
+        cycleDays: existing?.cycleDays ? Number(existing.cycleDays) : null,
+        requiredDocs: existing?.requiredDocs || [],
+        autoReminder: !!existing?.autoReminder,
+        remFreq: existing?.remFreq || 'Weekly',
+        creditLimit: existing?.creditLimit ? Number(existing.creditLimit) : null,
+        outstandingLimit: existing?.outstandingLimit ? Number(existing.outstandingLimit) : null,
         blocked: !!existing?.blocked,
-        hold_reason: existing?.holdReason || null
+        holdReason: existing?.holdReason || null
       };
     });
     if(rows.length===0){ showOk('Database me abhi koi bill party nahi mila.'); return; }
-    const { error: upsertErr } = await sb.from('party_master').upsert(rows, { onConflict: 'party' });
-    if(upsertErr) throw upsertErr;
+    await gsRequest('bulkUpsertParties', { rows });
     await loadAll();
     showOk(`${rows.length} parties database se add ho gaye.`);
   }catch(e){
@@ -1477,7 +1789,7 @@ el('importPartiesFromDbBtn').addEventListener('click', async ()=>{
 
 async function deleteParty(id){
   if(!confirm('Remove this party mapping?')) return;
-  try{ const { error } = await sb.from('party_master').delete().eq('id', id); if(error) throw error; await loadAll(); }
+  try{ await gsRequest('deleteParty', { id }); await loadAll(); }
   catch(e){ showErr('Delete failed: '+(e.message||e)); }
 }
 
@@ -1532,6 +1844,12 @@ function fillPartyForm(p){
   el('p-creditlimit').value=p.creditLimit||''; el('p-outstandinglimit').value=p.outstandingLimit||'';
   el('p-blocked').checked=!!p.blocked; el('p-holdreason').value=p.holdReason||'';
   document.querySelectorAll('#p-docs-group input[type=checkbox]').forEach(cb=>{ cb.checked=(p.requiredDocs||[]).includes(cb.value); });
+  // Opening Balance amount/date isn't stored on the Party row itself — the
+  // linked Bill row (via openingBalanceBillId) is the single source of truth,
+  // so we look it up from `entries` here to avoid two places disagreeing.
+  const obBill = p.openingBalanceBillId ? entries.find(e=>e.id===p.openingBalanceBillId) : null;
+  el('p-openingbalance').value = obBill ? (obBill.amount||'') : '';
+  el('p-openingbalancedate').value = obBill ? (obBill.billDate||'') : '';
   editingPartyId=p.id; el('partyCancelBtn').style.display='inline-block'; window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -1539,7 +1857,7 @@ function fillPartyForm(p){
 el('importFile').addEventListener('change', async (ev)=>{
   const file = ev.target.files[0];
   if(!file) return;
-  if(!isConfigured || !sb){ showErr('Pehle Supabase setup poora karein.'); ev.target.value=''; return; }
+  if(!isConfigured){ showErr('Pehle upar "Connect" box se Google Sheet URL daalein.'); ev.target.value=''; return; }
   if(!hasXlsxLib){ showErr('Excel library load nahi hui — internet check karein ya page reload karein.'); ev.target.value=''; return; }
   try{
     const buf = await file.arrayBuffer();
@@ -1573,20 +1891,20 @@ el('importFile').addEventListener('change', async (ev)=>{
       if(payDate && paymentAmount===null){ paymentAmount = calcNetAmount(billAmount, gstAmount, tds); }
       toInsert.push({
         party,
-        bill_number: billNumber || null,
-        invoice_number: pick(r['Invoice Number']).toString().trim() || null,
-        bill_period: pick(r['Bill Period']).toString().trim(),
-        bill_date: normDate(r['Bill Date']),
-        bill_uploaded_date: normDate(r['Bill Uploaded Date']),
-        email_date: normDate(r['Email Sent Date']),
-        hardcopy_date: normDate(r['Hard Copy Sent Date']),
-        submit_date: normDate(r['Bill Submission Date']),
-        expected_payment_date: normDate(r['Expected Payment Date']),
+        billNumber: billNumber || null,
+        invoiceNumber: pick(r['Invoice Number']).toString().trim() || null,
+        billPeriod: pick(r['Bill Period']).toString().trim(),
+        billDate: normDate(r['Bill Date']),
+        uploadedDate: normDate(r['Bill Uploaded Date']),
+        emailDate: normDate(r['Email Sent Date']),
+        hardcopyDate: normDate(r['Hard Copy Sent Date']),
+        submitDate: normDate(r['Bill Submission Date']),
+        expectedPayDate: normDate(r['Expected Payment Date']),
         mode: normMode(r['Delivery Mode']),
-        actual_date: normDate(r['Actual Submission Date (POD)'] || r['Actual Submission Date']),
-        amount: billAmount, gst_amount: gstAmount, tds: tds,
-        pay_date: payDate, payment_amount: paymentAmount,
-        payment_mode: pick(r['Payment Mode']).toString().trim() || null,
+        actualDate: normDate(r['Actual Submission Date (POD)'] || r['Actual Submission Date']),
+        amount: billAmount, gstAmount: gstAmount, tds: tds,
+        payDate: payDate, paymentAmount: paymentAmount,
+        paymentMode: pick(r['Payment Mode']).toString().trim() || null,
         remarks: pick(r['Remarks']).toString().trim() || null
       });
     }
@@ -1594,8 +1912,7 @@ el('importFile').addEventListener('change', async (ev)=>{
       showErr(duplicateCount>0 ? `Saari ${duplicateCount} row(s) duplicate Bill Number ki wajah se skip ho gayi.` : 'Excel me koi valid row nahi mili. Template format check karein.');
       ev.target.value=''; return;
     }
-    const { error } = await sb.from('bills').insert(toInsert);
-    if(error) throw error;
+    await gsRequest('bulkInsertBills', { rows: toInsert });
     showOk(toInsert.length + ' bills successfully import ho gaye.' + (duplicateCount>0 ? ` (${duplicateCount} duplicate Bill Number skip kiye gaye.)` : ''));
     await loadAll();
   }catch(e){
@@ -1653,7 +1970,7 @@ el('downloadTemplateBtn').addEventListener('click', ()=>{
 el('exportBtn').addEventListener('click', ()=>{
   const rows = getFilteredEntries().map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-    const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+    const pending = entryPendingAmount(e, net);
     return { ...e, netAmount: net, pendingAmount: pending, statusAuto: computeStatusAuto(e) };
   });
   exportToExcel({
@@ -1749,7 +2066,7 @@ el('exportLedgerBtn').addEventListener('click', ()=>{
   let running = 0;
   const withCalc = rows.map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-    const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+    const pending = entryPendingAmount(e, net);
     running += isClosedStatus(e) ? 0 : pending;
     return { ...e, net, pending, runningBalance: running };
   });
@@ -1961,7 +2278,7 @@ el('exportTurnaroundDetailBtn').addEventListener('click', ()=>{
       { key:'party', header:'Party Name', type:'text' },
       { key:'billNumber', header:'Bill #', type:'text' },
       { key:'billPeriod', header:'Bill Period', type:'text' },
-      { key:'payDate', header:'Payment Date', type:'date' },
+      { value: r => r.effPayDate, header:'Payment Date', type:'date' },
       { value: r => r.dEmail==null ? '' : r.dEmail, header:'Days after Email', type:'text' },
       { value: r => r.dHard==null ? '' : r.dHard, header:'Days after Hard Copy', type:'text' },
       { value: r => r.dPod==null ? '' : r.dPod, header:'Days after POD', type:'text' },
@@ -1975,13 +2292,13 @@ el('exportTurnaroundDetailBtn').addEventListener('click', ()=>{
 // ---------------- FILTERS ----------------
 el('searchBox')?.addEventListener('input', render);
 el('statusFilter')?.addEventListener('change', render);
-el('branchFilter')?.addEventListener('change', render);
+el('branchFilter')?.addEventListener('change', renderAll);
 // Period dropdown: toggle menu and wire checkbox selection handlers (guarded)
 const _periodBtn = el('periodBtn');
 if(_periodBtn){ _periodBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); const m = el('periodMenu'); if(m){ m.classList.toggle('show'); m.setAttribute('aria-hidden', String(!m.classList.contains('show'))); } }); }
 document.addEventListener('click', ()=>{ const m=el('periodMenu'); if(m && m.classList.contains('show')){ m.classList.remove('show'); m.setAttribute('aria-hidden','true'); }});
-const _periodAll = el('periodSelectAll'); if(_periodAll) _periodAll.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=true); render(); });
-const _periodClear = el('periodClear'); if(_periodClear) _periodClear.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=false); render(); });
+const _periodAll = el('periodSelectAll'); if(_periodAll) _periodAll.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=true); renderAll(); });
+const _periodClear = el('periodClear'); if(_periodClear) _periodClear.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); Array.from(document.querySelectorAll('#periodOptions input[type=checkbox]')).forEach(cb=>cb.checked=false); renderAll(); });
 
 // Dashboard ke liye alag function — isse Search box aur Status filter (jo Entries
 // tab ke liye hote hain) dashboard ke totals ko chhupate/todte nahi. Sirf Branch aur
@@ -2016,7 +2333,7 @@ function getFilteredEntries(){
     if(q){
       // Party, Bill Number, Invoice Number aur Amount (Net + Pending) — kisi se bhi search ho sakta hai.
       const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-      const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+      const pending = entryPendingAmount(e, net);
       const haystack = [e.party, e.billNumber, e.invoiceNumber, e.amount, net, pending]
         .filter(v=>v!=null && v!=='')
         .join(' ')
@@ -2054,15 +2371,21 @@ function render(){
     tbody.innerHTML = list.map(e=>{
       const paid = !!e.payDate;
       const ref = e.actualDate || e.submitDate;
-      const daysPending = paid ? 0 : (ref ? daysBetween(ref, todayStr()) : 0);
-      const bIdx = paid ? -1 : agingBucket(daysPending||0);
-      const edgeColor = paid ? 'transparent' : ['#15803D','#B45309','#C2410C','#9A3412','#1e1a17'][bIdx];
+      // BUGFIX: a pending bill with NO Submission/POD date at all used to fall
+      // through to daysPending=0 -> bucket 0 -> GREEN edge, which visually says
+      // "healthy, just submitted" when really the bill's aging can't be
+      // determined yet. Now that case gets its own neutral/slate indicator
+      // instead of a falsely reassuring green one.
+      const hasRef = !paid && !!ref;
+      const daysPending = paid ? 0 : (hasRef ? daysBetween(ref, todayStr()) : null);
+      const bIdx = paid ? -1 : (hasRef ? agingBucket(daysPending||0) : -2);
+      const edgeColor = paid ? 'transparent' : (bIdx===-2 ? 'var(--slate)' : ['#15803D','#B45309','#C2410C','#9A3412','#1e1a17'][bIdx]);
       const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-      const pending = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+      const pending = entryPendingAmount(e, net);
       const status = computeStatusAuto(e);
       return `<tr class="entry-row" style="cursor:pointer" data-id="${e.id}">
         <td class="name-cell" data-label="Party" style="border-left:4px solid ${edgeColor}">${escapeHtml(e.party)}</td>
-        <td data-label="Bill #">${escapeHtml(e.billNumber||'—')}</td>
+        <td data-label="Bill #">${escapeHtml(e.billNumber||'—')}${e.billType==='Opening Balance'?' <span class="badge" style="background:var(--slate-soft);color:var(--slate);">Opening Bal.</span>':''}</td>
         <td data-label="Invoice #">${escapeHtml(e.invoiceNumber||'—')}</td>
         <td data-label="Period">${escapeHtml(e.billPeriod||'—')}</td><td data-label="Bill Date">${fmtDate(e.billDate)}</td>
         <td data-label="Email Sent">${fmtDate(e.emailDate)}</td><td data-label="Hard Copy Sent">${fmtDate(e.hardcopyDate)}</td>
@@ -2080,8 +2403,8 @@ function render(){
       btn.addEventListener('click',(ev)=>{ ev.stopPropagation(); deleteEntry(btn.dataset.del); });
     });
     const totalAmount = list.reduce((sum,e)=>sum + ((e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds)), 0);
-    const pendingAmount = list.reduce((sum,e)=>sum + ((e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(((e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds)), e.paymentAmount, e.payDate)), 0);
-    const pendingBills = list.filter(e=>(((e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(((e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds)), e.paymentAmount, e.payDate))>0)).length;
+    const pendingAmount = list.reduce((sum,e)=>sum + (entryPendingAmount(e)), 0);
+    const pendingBills = list.filter(e=>((entryPendingAmount(e))>0)).length;
     setTableSummary(tbody.closest('.table-scroll'), `
       <span>Total Bills: <strong>${list.length}</strong></span>
       <span>Total Amount: <strong>${fmtMoney(totalAmount)}</strong></span>
@@ -2089,6 +2412,17 @@ function render(){
       <span>Pending Bills: <strong>${pendingBills}</strong></span>
     `);
   }
+}
+// BUGFIX (performance): render() used to always recompute renderDashboard() +
+// renderTurnaround() at its end — so typing in the Entries search box, or
+// toggling Paid/Pending status filter, recalculated the ENTIRE dashboard and
+// turnaround analysis on every keystroke, even though neither depends on
+// search/status (see getDashboardEntries()). On larger datasets this adds
+// real, unnecessary lag while typing. render() now only re-renders the
+// Entries table; renderAll() is used wherever the dashboard's own scope
+// (branch/period filter, or the underlying data itself) actually changes.
+function renderAll(){
+  render();
   renderDashboard();
   if(typeof renderTurnaround==='function') renderTurnaround();
 }
@@ -2098,7 +2432,7 @@ function renderDashboard(){
   const base = getDashboardEntries();
   const calc = base.map(e=>{
     const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-    const pend = (e.pendingAmount!=null) ? Number(e.pendingAmount) : calcPendingAmount(net, e.paymentAmount, e.payDate);
+    const pend = entryPendingAmount(e, net);
     return {...e, net, pend};
   });
   const total = calc.length;
@@ -2308,16 +2642,28 @@ function avgDays(list){ if(!list.length) return null; return list.reduce((a,b)=>
 function fmtAvgDays(v){ return v==null ? '—' : (Math.round(v*10)/10)+' din'; }
 
 function renderTurnaround(){
-  const paidBills = entries.filter(e=>e.payDate);
+  // BUGFIX: pehle sirf `entries.filter(e=>e.payDate)` — bills jo sirf Payments tab
+  // allocations se fully paid hue hain (bill ka apna payDate field kabhi nahi bhara
+  // gaya) is report se poori tarah miss ho jaate the. Ab "fully paid" ka matlab hai:
+  // pending amount <= 0 (chahe legacy payDate se ho ya allocations se), aur turnaround
+  // gap effective payment date (getEffectivePayDate) se measure hota hai — jo allocation
+  // wale bill ke liye uski sabse recent payment ki date hai, warna bill ka apna payDate.
+  const paidBills = entries.filter(e=>{
+    if(isClosedStatus(e)) return false;
+    if(e.billType==='Opening Balance') return false; // not a real bill cycle — turnaround days would be meaningless
+    const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
+    const pending = entryPendingAmount(e, net);
+    return pending<=0 && (e.payDate || billHasAllocations(e.id));
+  }).map(e=>({...e, effPayDate: getEffectivePayDate(e)})).filter(e=>e.effPayDate);
 
   // Har bill ke liye 4 alag turnaround gap nikalte hain — jo bhi date bhari hai uska hi gap banega,
   // baaki '—' rahega (taaki fake/wrong data na dikhe).
   const rows = paidBills.map(e=>({
     ...e,
-    dEmail: e.emailDate ? daysBetween(e.emailDate, e.payDate) : null,
-    dHard:  e.hardcopyDate ? daysBetween(e.hardcopyDate, e.payDate) : null,
-    dPod:   e.actualDate ? daysBetween(e.actualDate, e.payDate) : null,
-    dBill:  e.billDate ? daysBetween(e.billDate, e.payDate) : null,
+    dEmail: e.emailDate ? daysBetween(e.emailDate, e.effPayDate) : null,
+    dHard:  e.hardcopyDate ? daysBetween(e.hardcopyDate, e.effPayDate) : null,
+    dPod:   e.actualDate ? daysBetween(e.actualDate, e.effPayDate) : null,
+    dBill:  e.billDate ? daysBetween(e.billDate, e.effPayDate) : null,
   }));
 
   const note = paidBills.length===0
@@ -2369,12 +2715,12 @@ function renderTurnaround(){
   ]);
 
   // ---- Bill-wise detail: latest payment sabse upar ----
-  const detailRows = rows.slice().sort((a,b)=> (b.payDate||'').localeCompare(a.payDate||''));
+  const detailRows = rows.slice().sort((a,b)=> (b.effPayDate||'').localeCompare(a.effPayDate||''));
   el('turnaroundBody').innerHTML = detailRows.length ? detailRows.map(r=>`<tr>
     <td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td>
     <td data-label="Bill #">${escapeHtml(r.billNumber||'—')}</td>
     <td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td>
-    <td data-label="Payment Date">${fmtDate(r.payDate)}</td>
+    <td data-label="Payment Date">${fmtDate(r.effPayDate)}</td>
     <td data-label="Days after Email">${r.dEmail!=null?r.dEmail:'—'}</td>
     <td data-label="Days after Hard Copy">${r.dHard!=null?r.dHard:'—'}</td>
     <td data-label="Days after POD">${r.dPod!=null?r.dPod:'—'}</td>
@@ -2387,8 +2733,323 @@ function renderTurnaround(){
   ]);
 }
 
+// ---- Connect box wiring (kept here, at the very end of the script,
+// so that el()/showErr()/showOk()/loadAll() are already defined) ----
+el('connectBtn').addEventListener('click', async ()=>{
+  const val = el('gasUrlInput').value.trim();
+  if(!val || !val.includes('script.google.com')){
+    showErr('Sahi Google Apps Script Web App URL daalein (script.google.com wali, /exec par khatam hone wali).');
+    return;
+  }
+  const btn = el('connectBtn');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+  setGasUrl(val);
+  // BUGFIX: agar browser localStorage block kar raha hai (private/incognito
+  // window, ya storage permission disabled), setGasUrl() chup-chaap fail ho
+  // jaata tha — is se "Connect ho gaya!" dikh jaata tha lekin agli hi request
+  // GAS_URL khaali hone ki wajah se fail ho jaati thi. Ab save turant verify
+  // karte hain, warna clear error dikhate hain, isConfigured false hi rakhte hain.
+  if(getGasUrl() !== val){
+    showErr('Connect nahi ho paya — is browser me settings save nahi ho pa rahi (shayad Private/Incognito window hai, ya storage block hai). Normal browser window me try karein.');
+    btn.disabled = false; btn.textContent = 'Connect';
+    return;
+  }
+  isConfigured = true;
+  renderConnectBar();
+  await loadAll();
+  btn.disabled = false; btn.textContent = 'Connect';
+  showOk('Google Sheet se connect ho gaya!');
+});
+// Topbar "Refresh" button — visible on EVERY tab, so the user never has to
+// visit the Connection tab just to pull fresh data.
+el('topRefreshBtn').addEventListener('click', async ()=>{
+  if(!isConfigured){ showErr('Pehle "🔗 Connection" tab se Google Sheet connect karein.'); return; }
+  const btn = el('topRefreshBtn');
+  btn.disabled = true; btn.textContent = '🔄 Refreshing…';
+  await loadAll();
+  btn.disabled = false; btn.textContent = '🔄 Refresh';
+  showOk('Data refresh ho gaya.');
+});
+renderConnectBar();
+
 updateComputedFields();
 initCollapsibleCards();
+
+// =====================================================================
+// PAYMENTS TAB — record one real payment and split ("allocate") it across
+// one or more of that party's pending bills. This is the fix for the
+// "MedPlus sent ₹3500 against a ₹2000 Jan bill + ₹5000 Feb bill" case:
+// instead of forcing that ₹3500 onto a single bill's Payment Amount field,
+// it becomes its own Payment record with an explicit, editable split.
+// =====================================================================
+function populatePaymentsPartySelects(){
+  const names = parties.map(p=>p.party).sort((a,b)=>a.localeCompare(b));
+  const sel = el('pay-party');
+  if(sel){
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Party select karein —</option>' + names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    if(names.includes(cur)) sel.value = cur;
+  }
+  const filt = el('payHistoryPartyFilter');
+  if(filt){
+    const cur2 = filt.value;
+    filt.innerHTML = '<option value="">— All Parties —</option>' + names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    if(names.includes(cur2)) filt.value = cur2;
+  }
+}
+
+// Every pending bill for a party, oldest bill-date first (FIFO — standard
+// recovery practice: clear the oldest dues first unless told otherwise).
+function getPendingBillsForParty(party){
+  return entries.filter(e=>e.party===party && !isClosedStatus(e))
+    .map(e=>{
+      const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
+      // When editing an existing payment, its OWN old allocations shouldn't
+      // count against a bill's "already pending" figure (we're about to
+      // replace them), so we exclude them here and re-add only the bill's
+      // current row when building the allocation table for that payment.
+      const otherAlloc = allocations.filter(a=>a.billId===e.id && a.paymentId!==editingPaymentId).reduce((s,a)=>s+(Number(a.amountApplied)||0),0);
+      const pendingExcludingThisPayment = net - otherAlloc;
+      return {...e, net, pendingExcludingThisPayment};
+    })
+    .filter(e=>e.pendingExcludingThisPayment > 0.01)
+    .sort((a,b)=>(a.billDate||'').localeCompare(b.billDate||''));
+}
+
+// Auto-suggests a FIFO split of `amount` across `bills` (oldest first),
+// filling each bill's pending amount fully before moving to the next.
+// Any leftover (payment bigger than total pending) is left unallocated —
+// the user sees this as "Unallocated" and Save is blocked until it's ₹0,
+// so money never silently vanishes or gets mis-applied.
+function autoAllocate(amount, bills){
+  let remaining = Number(amount)||0;
+  const out = {};
+  bills.forEach(b=>{
+    if(remaining<=0){ out[b.id]=0; return; }
+    const apply = Math.min(remaining, b.pendingExcludingThisPayment);
+    out[b.id] = Math.round(apply*100)/100;
+    remaining -= apply;
+  });
+  return out;
+}
+
+// BUGFIX: pehle 'pay-amount' field pe har input/change event seedha
+// renderPaymentAllocationTable() ko poora re-run karta tha, jo har baar
+// autoAllocate() (fresh FIFO suggestion) chala kar user ke MANUALLY edit kiye
+// hue split amounts ko silently overwrite/wipe kar deta tha — e.g. user ne
+// Bill A me ₹1000 aur Bill B me ₹2500 manually daala, aur sirf Payment Amount
+// field me ek typo theek kiya, to poora split reset ho jaata tha. Ab ek
+// "touched" flag rakhte hain: jaise hi user kisi bhi split input ko khud edit
+// kare, flag set ho jaata hai aur uske baad Payment Amount change hone par bhi
+// unke manual numbers chhue nahi jaate — sirf summary (Total Allocated/
+// Unallocated) recalculate hoti hai. Party badalne par (fresh bill list) flag
+// reset hokar naya auto-suggestion banta hai, jaisa pehle hota tha.
+let allocationsTouched = false;
+
+function renderPaymentAllocationTable(){
+  const party = el('pay-party').value;
+  const box = el('payAllocationBox');
+  if(!party){ box.style.display='none'; el('payFormEmpty').style.display='none'; return; }
+  const bills = getPendingBillsForParty(party);
+  if(bills.length===0){ box.style.display='none'; el('payFormEmpty').style.display='block'; return; }
+  el('payFormEmpty').style.display='none'; box.style.display='block';
+  allocationsTouched = false; // fresh table build (party changed / payment being edited) — nothing touched yet
+
+  // TDS-AT-PAYMENT: some parties deduct TDS at the time of payment (bill was
+  // ₹10,000, party sends ₹9,800 + deducts ₹200 TDS). The bill is fully settled
+  // by amount+tds together, so that combined "Total Settlement" figure — not
+  // just the bank-received amount — is what needs to be fully allocated across
+  // bills below.
+  const totalSettlement = getTotalSettlement();
+  let suggested;
+  if(editingPaymentId){
+    suggested = {};
+    bills.forEach(b=>{ suggested[b.id] = 0; });
+    allocations.filter(a=>a.paymentId===editingPaymentId).forEach(a=>{ suggested[a.billId] = Number(a.amountApplied)||0; });
+  } else {
+    suggested = autoAllocate(totalSettlement, bills);
+  }
+
+  el('payAllocBody').innerHTML = bills.map(b=>`
+    <tr>
+      <td data-label="Bill #">${escapeHtml(b.billNumber||'—')}</td>
+      <td data-label="Period">${escapeHtml(b.billPeriod||'—')}</td>
+      <td data-label="Bill Date">${fmtDate(b.billDate)}</td>
+      <td data-label="Net Amount">${fmtMoney(b.net)}</td>
+      <td data-label="Already Pending">${fmtMoney(b.pendingExcludingThisPayment)}</td>
+      <td data-label="Apply Amount"><input type="number" class="pay-alloc-input" min="0" step="0.01" data-bill-id="${b.id}" data-max="${b.pendingExcludingThisPayment}" value="${suggested[b.id]||0}" style="width:100%;"></td>
+    </tr>`).join('');
+
+  el('payAllocBody').querySelectorAll('.pay-alloc-input').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ allocationsTouched = true; updatePayAllocSummary(); });
+  });
+  updatePayAllocSummary();
+}
+
+// Combined figure that must be fully allocated across bills: the actual bank
+// amount received, PLUS whatever TDS the party deducted at source (TDS still
+// settles the bill — it's just paid to the government instead of to you — so
+// it counts toward clearing the bill even though it never hits your bank).
+function getTotalSettlement(){
+  const amount = Number(el('pay-amount').value)||0;
+  const tds = Number(el('pay-tds').value)||0;
+  return Math.round((amount+tds)*100)/100;
+}
+
+// Called only when the Payment Amount or TDS field changes (not party) —
+// re-runs the FIFO auto-suggestion ONLY if the user hasn't manually edited
+// any split yet; if they have, their numbers are left exactly as-is and only
+// the summary chips (Total Allocated / Unallocated) are recalculated against
+// the new total settlement.
+function refreshAllocationSuggestionOnAmountChange(){
+  const party = el('pay-party').value;
+  if(!party) return;
+  if(el('payAllocationBox').style.display === 'none') return;
+  if(editingPaymentId || allocationsTouched){ updatePayAllocSummary(); return; }
+  const bills = getPendingBillsForParty(party);
+  const suggested = autoAllocate(getTotalSettlement(), bills);
+  document.querySelectorAll('.pay-alloc-input').forEach(inp=>{ inp.value = suggested[inp.dataset.billId] || 0; });
+  updatePayAllocSummary();
+}
+
+function updatePayAllocSummary(){
+  const amount = Number(el('pay-amount').value)||0;
+  const tds = Number(el('pay-tds').value)||0;
+  const totalSettlement = getTotalSettlement();
+  const inputs = Array.from(document.querySelectorAll('.pay-alloc-input'));
+  // BUGFIX: a negative "Apply Amount" (e.g. user types -500) used to be counted
+  // at face value here, but at Save-time only positive amounts get kept
+  // (allocRows filters amountApplied>0) — so this live summary could show
+  // "Unallocated: ₹0" (looks fully matched) while Save would then recompute a
+  // different total from the filtered rows and reject with a mismatch error,
+  // very confusing. Clamping to 0 here makes the live preview always match
+  // exactly what Save will actually validate/store.
+  const totalAllocated = inputs.reduce((s,i)=>s+Math.max(0, Number(i.value)||0), 0);
+  const hasNegative = inputs.some(i=>Number(i.value)<0);
+  const unallocated = Math.round((totalSettlement-totalAllocated)*100)/100;
+  el('paySettlementNote').innerHTML = tds>0
+    ? `<div class="summary-chip">Payment (received): <b>${fmtMoney(amount)}</b></div><div class="summary-chip">+ TDS Deducted: <b>${fmtMoney(tds)}</b></div><div class="summary-chip">= Total Settlement to allocate: <b>${fmtMoney(totalSettlement)}</b></div>`
+    : '';
+  el('payAllocSummary').innerHTML = `
+    <div class="stat"><div class="label">${tds>0?'Total Settlement':'Payment Amount'}</div><div class="val">${fmtMoney(totalSettlement)}</div></div>
+    <div class="stat green"><div class="label">Total Allocated</div><div class="val">${fmtMoney(totalAllocated)}</div></div>
+    <div class="stat ${unallocated===0 && !hasNegative?'green':'rust'}"><div class="label">Unallocated</div><div class="val">${fmtMoney(unallocated)}</div></div>`;
+}
+
+el('pay-party').addEventListener('input', renderPaymentAllocationTable);
+el('pay-party').addEventListener('change', renderPaymentAllocationTable);
+el('pay-amount').addEventListener('input', refreshAllocationSuggestionOnAmountChange);
+el('pay-amount').addEventListener('change', refreshAllocationSuggestionOnAmountChange);
+el('pay-tds').addEventListener('input', refreshAllocationSuggestionOnAmountChange);
+el('pay-tds').addEventListener('change', refreshAllocationSuggestionOnAmountChange);
+
+function resetPaymentForm(){
+  ['pay-date','pay-amount','pay-tds','pay-mode','pay-refno','pay-remarks'].forEach(id=>el(id).value='');
+  el('pay-party').value='';
+  editingPaymentId = null;
+  allocationsTouched = false;
+  el('payCancelBtn').style.display='none';
+  el('payAllocationBox').style.display='none';
+  el('payFormEmpty').style.display='none';
+}
+
+el('payCancelBtn').addEventListener('click', resetPaymentForm);
+
+el('paySaveBtn').addEventListener('click', async ()=>{
+  if(!isConfigured){ showErr('Pehle upar "Connect" box se Google Sheet URL daalein.'); return; }
+  const party = el('pay-party').value;
+  if(!party){ showErr('Party select karein.'); return; }
+  const amount = Number(el('pay-amount').value)||0;
+  const tds = Number(el('pay-tds').value)||0;
+  if(tds<0){ showErr('TDS Deducted negative nahi ho sakta.'); return; }
+  if(amount<=0 && tds<=0){ showErr('Payment Amount ya TDS Deducted, dono me se kam se kam ek 0 se zyada hona chahiye.'); return; }
+  const totalSettlement = getTotalSettlement();
+  const inputs = Array.from(document.querySelectorAll('.pay-alloc-input'));
+  // BUGFIX: negative apply-amounts used to just get silently dropped (filtered
+  // out below) instead of being flagged, which is what caused the live-summary
+  // vs save-time mismatch described above. Now we reject them outright with a
+  // clear message instead of silently discarding what the user typed.
+  const negativeInput = inputs.find(i => Number(i.value) < 0);
+  if(negativeInput){ showErr('Kisi bhi bill ke Apply Amount me negative value nahi de sakte.'); return; }
+  const allocRows = inputs.map(i=>({ billId: i.dataset.billId, amountApplied: Number(i.value)||0 })).filter(a=>a.amountApplied>0);
+  const totalAllocated = allocRows.reduce((s,a)=>s+a.amountApplied,0);
+  if(Math.round((totalSettlement-totalAllocated)*100)/100 !== 0){
+    showErr('Unallocated amount ₹0 hona chahiye — allocation total, Payment Amount + TDS Deducted ke barabar karein (upar table me amounts adjust karein).');
+    return;
+  }
+  // Guard: no bill should ever be allocated more than its own pending amount.
+  const overAllocated = inputs.find(i=> (Number(i.value)||0) > Number(i.dataset.max)+0.01);
+  if(overAllocated){ showErr('Kisi bill ko uske pending amount se zyada allocate nahi kar sakte.'); return; }
+
+  const data = { party, date: el('pay-date').value || todayStr(), amount, tds, mode: el('pay-mode').value.trim(), refNo: el('pay-refno').value.trim(), remarks: el('pay-remarks').value.trim() };
+  el('paySaveBtn').textContent='Saving…'; el('paySaveBtn').disabled=true;
+  try{
+    if(editingPaymentId){ await gsRequest('updatePayment', { id: editingPaymentId, data, allocations: allocRows }); }
+    else { await gsRequest('insertPayment', { data, allocations: allocRows }); }
+    resetPaymentForm();
+    await loadAll();
+    showOk('Payment save ho gayi.');
+  }catch(e){
+    showErr('Payment save nahi hui: ' + (e.message||e));
+  }
+  el('paySaveBtn').textContent='Save Payment'; el('paySaveBtn').disabled=false;
+});
+
+function editPayment(id){
+  const p = payments.find(x=>x.id===id);
+  if(!p) return;
+  editingPaymentId = id;
+  el('pay-party').value = p.party;
+  el('pay-date').value = p.date||'';
+  el('pay-amount').value = p.amount!=null?p.amount:'';
+  el('pay-tds').value = p.tds!=null?p.tds:'';
+  el('pay-mode').value = p.mode||'';
+  el('pay-refno').value = p.refNo||'';
+  el('pay-remarks').value = p.remarks||'';
+  el('payCancelBtn').style.display='inline-block';
+  renderPaymentAllocationTable();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function deletePayment(id){
+  if(!confirm('Ye payment delete karein? Iske saare bill-allocations bhi hat jaayenge aur un bills ka pending amount wapas badh jaayega.')) return;
+  try{
+    await gsRequest('deletePayment', { id });
+    if(editingPaymentId===id) resetPaymentForm();
+    await loadAll();
+    showOk('Payment delete ho gayi.');
+  }catch(e){ showErr('Delete nahi hui: ' + (e.message||e)); }
+}
+
+function renderPaymentsTab(){
+  populatePaymentsPartySelects();
+  const filterParty = el('payHistoryPartyFilter').value;
+  const list = payments.filter(p=>!filterParty || p.party===filterParty).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el('payHistoryEmpty').style.display = list.length ? 'none' : 'block';
+  el('payHistoryList').innerHTML = list.length ? `<div class="table-scroll"><table>
+    <thead><tr><th>Date</th><th>Party</th><th>Amount</th><th>TDS</th><th>Mode</th><th>Reference</th><th>Applied To</th><th></th></tr></thead>
+    <tbody>${list.map(p=>{
+      const allocs = allocations.filter(a=>a.paymentId===p.id);
+      const breakdown = allocs.map(a=>{
+        const bill = entries.find(e=>e.id===a.billId);
+        return `${escapeHtml(bill ? (bill.billNumber||bill.billPeriod||'Bill') : 'Bill')}: ${fmtMoney(a.amountApplied)}`;
+      }).join('<br>') || '—';
+      return `<tr>
+        <td data-label="Date">${fmtDate(p.date)}</td>
+        <td data-label="Party" class="name-cell">${escapeHtml(p.party)}</td>
+        <td data-label="Amount" style="font-weight:700;">${fmtMoney(p.amount)}</td>
+        <td data-label="TDS">${p.tds ? fmtMoney(p.tds) : '—'}</td>
+        <td data-label="Mode">${escapeHtml(p.mode||'—')}</td>
+        <td data-label="Reference">${escapeHtml(p.refNo||'—')}</td>
+        <td data-label="Applied To">${breakdown}</td>
+        <td class="cell-action"><button class="btn btn-ghost btn-sm" data-edit-pay="${p.id}">Edit</button> <button class="del-btn" data-del-pay="${p.id}" title="Delete">✕</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>` : '';
+  el('payHistoryList').querySelectorAll('[data-edit-pay]').forEach(btn=>btn.addEventListener('click', ()=>editPayment(btn.dataset.editPay)));
+  el('payHistoryList').querySelectorAll('[data-del-pay]').forEach(btn=>btn.addEventListener('click', ()=>deletePayment(btn.dataset.delPay)));
+}
+el('payHistoryPartyFilter').addEventListener('change', renderPaymentsTab);
+
 loadAll();
 </script>
 </body>
