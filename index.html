@@ -665,7 +665,7 @@
         </div>
         <div class="field"><label>Payment Date</label><input type="date" id="pay-date"></div>
         <div class="field"><label>Payment Amount (received, ₹)</label><input type="number" id="pay-amount" min="0" step="0.01" placeholder="e.g. 3500"></div>
-        <div class="field"><label>TDS Deducted (₹)</label><input type="number" id="pay-tds" min="0" step="0.01" placeholder="agar party ne kaata ho, warna 0"></div>
+        <div class="field"><label>TDS Deducted (₹) <button type="button" id="autoTdsBtn" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px;margin-left:6px;vertical-align:middle;" title="Neeche allocation table mein jis bill ka Apply Amount uske Net Amount se kam bhara hai, us kami ko TDS maan kar yahan bhar dega aur us bill ko poora allocate kar dega.">🧮 Auto-Calculate</button></label><input type="number" id="pay-tds" min="0" step="0.01" placeholder="agar party ne kaata ho, warna 0"></div>
         <div class="field"><label>Payment Mode</label><input type="text" id="pay-mode" placeholder="NEFT / Cheque / UPI…"></div>
         <div class="field"><label>Reference / UTR</label><input type="text" id="pay-refno"></div>
         <div class="field wide"><label>Remarks</label><input type="text" id="pay-remarks"></div>
@@ -2403,8 +2403,14 @@ function render(){
       btn.addEventListener('click',(ev)=>{ ev.stopPropagation(); deleteEntry(btn.dataset.del); });
     });
     const totalAmount = list.reduce((sum,e)=>sum + ((e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds)), 0);
-    const pendingAmount = list.reduce((sum,e)=>sum + (entryPendingAmount(e)), 0);
-    const pendingBills = list.filter(e=>((entryPendingAmount(e))>0)).length;
+    // BUGFIX: Cancelled/Disputed/Rejected bills are outside the active recovery
+    // cycle (see isClosedStatus) — Dashboard and Party Ledger already exclude
+    // them from "pending" totals, but this Entries-tab summary strip previously
+    // didn't, so a Cancelled bill with an unpaid balance still inflated
+    // "Pending"/"Pending Bills" here even though it never showed as pending
+    // anywhere else in the app. Now consistent everywhere.
+    const pendingAmount = list.reduce((sum,e)=> sum + (isClosedStatus(e) ? 0 : entryPendingAmount(e)), 0);
+    const pendingBills = list.filter(e=> !isClosedStatus(e) && entryPendingAmount(e)>0).length;
     setTableSummary(tbody.closest('.table-scroll'), `
       <span>Total Bills: <strong>${list.length}</strong></span>
       <span>Total Amount: <strong>${fmtMoney(totalAmount)}</strong></span>
@@ -2942,6 +2948,51 @@ el('pay-amount').addEventListener('input', refreshAllocationSuggestionOnAmountCh
 el('pay-amount').addEventListener('change', refreshAllocationSuggestionOnAmountChange);
 el('pay-tds').addEventListener('input', refreshAllocationSuggestionOnAmountChange);
 el('pay-tds').addEventListener('change', refreshAllocationSuggestionOnAmountChange);
+
+// ---------------------------------------------------------------------
+// AUTO-CALCULATE TDS — party ne partial amount bheja ho (jaise ek bill
+// ₹39,160 ka tha aur ₹38,377 hi aaya), to user ke liye manually TDS
+// (₹783) nikal kar type karna padta tha. Ab: jis bill row mein Apply
+// Amount uske Net Amount se kam bhara hai, us shortfall ko hi TDS maan
+// kar TDS Deducted field mein daal denge, aur us row ko poora Net
+// Amount tak allocate kar denge — taaki Unallocated apne aap ₹0 ho jaaye.
+// Jaan-boojh kar ye ek button hai (automatic-on-every-keystroke nahi),
+// kyunki app partial payments (bina TDS ke, baaki paisa baad mein) ko
+// bhi support karta hai — agar hum har kam-bhare row ko silently TDS
+// maan lete, to genuine partial payments ka data galat ho jaata.
+// ---------------------------------------------------------------------
+el('autoTdsBtn')?.addEventListener('click', ()=>{
+  const inputs = Array.from(document.querySelectorAll('.pay-alloc-input'));
+  if(!inputs.length){ showErr('Pehle party select karein aur pending bills load hone dein.'); return; }
+  let totalShortfall = 0, adjustedCount = 0, sumMax = 0;
+  inputs.forEach(inp=>{
+    const applied = Number(inp.value)||0;
+    const max = Number(inp.dataset.max)||0;
+    if(applied>0 && applied < max-0.004){
+      totalShortfall += (max-applied);
+      sumMax += max;
+      inp.value = max; // is bill ko ab poora allocate maan lete hain — baaki hissa TDS se settle hoga
+      adjustedCount++;
+    }
+  });
+  if(adjustedCount===0){
+    const totalApplied = inputs.reduce((s,i)=>s+(Number(i.value)||0),0);
+    const settlement = getTotalSettlement();
+    if(Math.abs(totalApplied-settlement) < 0.01 && totalApplied>0){
+      showOk('Sab bills already poore allocate ho chuke hain — TDS auto-calculate karne ke liye koi shortfall bacha nahi hai.');
+    } else {
+      showErr('Koi row aisi nahi mili jisme Apply Amount, us bill ke Net Amount se kam ho. Pehle jis bill ke against sirf cash-received amount daala hai (poore bill ka amount nahi), us row mein wahi (kam) amount bhar dein, phir ye button dabayein.');
+    }
+    return;
+  }
+  totalShortfall = Math.round(totalShortfall*100)/100;
+  const existingTds = Number(el('pay-tds').value)||0;
+  el('pay-tds').value = Math.round((existingTds+totalShortfall)*100)/100;
+  allocationsTouched = true;
+  const pct = sumMax>0 ? Math.round((totalShortfall/sumMax)*10000)/100 : 0;
+  updatePayAllocSummary();
+  showOk('TDS ₹'+totalShortfall.toLocaleString('en-IN')+' auto-calculate ho gaya (~'+pct+'% of allocated bill amount) — us bill ka Apply Amount bhi ab poora kar diya gaya hai.');
+});
 
 function resetPaymentForm(){
   ['pay-date','pay-amount','pay-tds','pay-mode','pay-refno','pay-remarks'].forEach(id=>el(id).value='');
