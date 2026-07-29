@@ -396,7 +396,20 @@
         <div class="field"><label>Bill Period</label><input type="text" id="f-period" placeholder="June"></div>
         <div class="field"><label>Bill Amount (₹)</label><input type="text" id="f-amount" placeholder="0"></div>
         <div class="field"><label>GST Amount (₹)</label><input type="text" id="f-gst" placeholder="0"></div>
-        <div class="field"><label>TDS (₹)</label><input type="text" id="f-tds" placeholder="0"></div>
+        <div class="field">
+          <label>TDS (₹)</label>
+          <div style="display:flex;gap:5px;">
+            <input type="text" id="f-tds" placeholder="0" style="flex:1;min-width:0;">
+            <select id="f-tdsrate" title="TDS rate — Auto-Calculate is % ko Bill Amount par apply karega" style="width:58px;border:1px solid var(--line);border-radius:var(--radius-sm);font-family:var(--mono);font-size:11px;background:#fff;padding:0 2px;">
+              <option value="1">1%</option>
+              <option value="2" selected>2%</option>
+              <option value="5">5%</option>
+              <option value="10">10%</option>
+            </select>
+            <button type="button" id="autoTdsCalcBillBtn" class="btn btn-ghost btn-sm" style="padding:0 10px;font-size:11px;" title="Bill Amount ka chuna hua % TDS field mein bhar dega">🧮</button>
+          </div>
+          <div id="tdsPctIndicator" style="font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px;"></div>
+        </div>
         <div class="field"><label>Net Amount</label><div class="computed-field" id="f-netamount-display">₹0</div></div>
         <div class="field"><label>Bill Generate Date</label><input type="date" id="f-billdate"></div>
         <div class="field"><label>Bill Uploaded Date</label><input type="date" id="f-uploaddate"></div>
@@ -794,10 +807,12 @@
   <div class="panel" id="panel-turnaround">
     <div class="card">
       <h2>Payment Turnaround Analysis</h2>
-      <div class="desc">Bill deliver hone ke (Email / Hard Copy / POD bhejne ke) kitne din baad party ne payment kiya — sirf paid bills par based, jisse pata chale koi party kis document ke baad kitni der lagati hai.</div>
+      <div class="desc">Party ne Bill Date se Payment Date tak kitne din liye — yahi is report ka core metric hai (har paid bill me available hota hai). Email / Hard Copy / POD ke baad ka gap bhi neeche extra detail ke roop mein diya gaya hai (jab wo dates bhari ho). Sirf fully-paid bills par based.</div>
       <div class="rule"></div>
       <div id="turnaroundNote"></div>
       <div class="stat-row" id="turnaroundStatRow"></div>
+      <div class="desc" style="margin:8px 0 8px;">Document-wise averages (jab wo date bhari ho):</div>
+      <div class="stat-row" id="turnaroundStatRow2"></div>
     </div>
     <div class="card">
       <div class="card-head">
@@ -807,7 +822,7 @@
       <div id="turnaroundPartyBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="summary-strip" id="turnaroundPartySummary"></div>
-      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Paid</th><th>Avg after Email</th><th>Avg after Hard Copy</th><th>Avg after POD</th><th>Avg after Bill Date</th></tr></thead><tbody id="turnaroundPartyBody"></tbody></table></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bills Paid</th><th>Avg Days to Pay (Bill Date)</th><th>Fastest</th><th>Slowest</th><th>Avg after Email</th><th>Avg after Hard Copy</th><th>Avg after POD</th></tr></thead><tbody id="turnaroundPartyBody"></tbody></table></div>
       </div>
     </div>
     <div class="card">
@@ -818,7 +833,7 @@
       <div id="turnaroundBody_card" class="collapsible-body collapsed">
       <div class="rule"></div>
       <div class="summary-strip" id="turnaroundDetailSummary"></div>
-      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Payment Date</th><th>Days after Email</th><th>Days after Hard Copy</th><th>Days after POD</th><th>Days after Bill Date</th></tr></thead><tbody id="turnaroundBody"></tbody></table></div>
+      <div class="table-scroll"><table><thead><tr><th>Party</th><th>Bill #</th><th>Period</th><th>Bill Date</th><th>Payment Date</th><th>Days to Pay (Bill Date)</th><th>Days after Email</th><th>Days after Hard Copy</th><th>Days after POD</th></tr></thead><tbody id="turnaroundBody"></tbody></table></div>
       </div>
     </div>
   </div>
@@ -1540,6 +1555,9 @@ function resetForm(){
   document.getElementById('partyBlockedWarning')?.remove();
   document.getElementById('billAllocatedNote')?.remove();
   el('formTitle').textContent='Add Bill Entry'; el('cancelEditBtn').style.display='none';
+  // New bill entry never has allocations yet — always start with these editable.
+  el('f-paydate').disabled = false; el('f-paymentamount').disabled = false;
+  el('f-tdsrate').value = '2';
   updateComputedFields();
 }
 function fillForm(entry){
@@ -1552,6 +1570,22 @@ function fillForm(entry){
   el('f-emaildate').value=entry.emailDate||''; el('f-hardcopydate').value=entry.hardcopyDate||'';
   el('f-actualdate').value=entry.actualDate||''; el('f-paydate').value=entry.payDate||'';
   el('f-paymentamount').value=entry.paymentAmount!=null?entry.paymentAmount:'';
+  // BUGFIX (accuracy): a bill that was paid/partially-paid via the Payments tab
+  // (split allocations) never had its own payDate/paymentAmount fields written —
+  // so re-opening it for edit used to show these two fields BLANK even though the
+  // bill was actually paid, which looked like the payment had vanished. Now we
+  // override the display with the real, allocation-derived numbers (effective
+  // payment date = latest allocation's payment date; amount = total allocated so
+  // far) so what's shown always matches reality, and lock the fields so editing
+  // them here can never disagree with the Payments tab (use Payments tab to
+  // change/remove the actual payment).
+  if(billHasAllocations(entry.id)){
+    el('f-paydate').value = getEffectivePayDate(entry) || '';
+    el('f-paymentamount').value = getAllocatedForBill(entry.id);
+    el('f-paydate').disabled = true; el('f-paymentamount').disabled = true;
+  } else {
+    el('f-paydate').disabled = false; el('f-paymentamount').disabled = false;
+  }
   el('f-paymode').value=entry.paymentMode||''; el('f-cheque').value=entry.cheque||''; el('f-utr').value=entry.utr||'';
   el('f-refno').value=entry.refNo||''; el('f-remarks').value=entry.remarks||''; el('f-statusoverride').value=entry.statusOverride||'';
   editingId=entry.id; el('formTitle').textContent='Edit Bill Entry';
@@ -1574,7 +1608,7 @@ function fillForm(entry){
     const n = document.createElement('div');
     n.id='billAllocatedNote'; n.className='blocked-warning';
     n.style.background='var(--slate-soft)'; n.style.color='var(--ink)';
-    n.textContent = 'ℹ️ Is bill ko Payments tab se ₹'+getAllocatedForBill(entry.id).toLocaleString('en-IN')+' allocate ho chuka hai — pending amount ab wahi se calculate hota hai (neeche Payment Date/Amount fields is bill ke liye ignore ho jaate hain). Payment edit/remove karne ke liye Payments tab use karein.';
+    n.textContent = 'ℹ️ Is bill ko Payments tab se ₹'+getAllocatedForBill(entry.id).toLocaleString('en-IN')+' allocate ho chuka hai — neeche Payment Date/Amount fields isi allocated data se auto-filled hain aur lock hain (edit karne ke liye Payments tab use karein).';
     partyInput.closest('.field').after(n);
   }
   updateComputedFields();
@@ -1604,7 +1638,42 @@ function updateComputedFields(){
   const st = computeStatusAuto({ id: editingId, netAmount:net, pendingAmount:pending, paymentAmount:el('f-paymentamount').value, payDate:el('f-paydate').value,
     submitDate:el('f-submitdate').value, hardcopyDate:el('f-hardcopydate').value, emailDate:el('f-emaildate').value, statusOverride:el('f-statusoverride').value });
   el('f-status-badge').innerHTML = `<span class="badge status-${statusKey(st)}">${st}</span>`;
+  updateTdsPercentIndicator();
 }
+
+// ---------------- BILL ENTRY — TDS AUTO-CALCULATE + LIVE % INDICATOR ----------------
+// Har bill par TDS amount ka koi FIXED standard rate nahi hota (party/contract ke
+// hisab se 1%/2%/5%/10% ya kuch aur ho sakta hai), isliye "Auto-Calculate" ek button
+// hai jo user ke chune hue % (dropdown se) ko Bill Amount par apply karke TDS field
+// bhar deta hai — user chahe to number ko hamesha manually bhi overwrite kar sakta
+// hai. Saath hi, jo bhi TDS abhi field mein bhara hai (chahe auto-calculate se ho ya
+// haath se type kiya ho), uske neeche hamesha ek LIVE "TDS is X% of Bill Amount"
+// indicator dikhta hai — taaki agar koi galti se zyada/kam TDS bhar de (jaise 2% ki
+// jagah 20%), to percentage dekh kar turant pakड़ mein aa jaaye. 1%–10% ko normal
+// (green) maana hai kyunki TDS Section 194C jaise common cases isi range mein aate
+// hain; usse zyada ho to caution (rust) rang mein highlight hota hai — sirf ek visual
+// signal hai, save karne se kabhi block nahi karta (kyunki kuch valid cases mein
+// TDS zyada bhi ho sakta hai).
+function updateTdsPercentIndicator(){
+  const indicator = el('tdsPctIndicator');
+  if(!indicator) return;
+  const amount = toNumOrNull(el('f-amount').value);
+  const tds = toNumOrNull(el('f-tds').value);
+  if(!amount || amount<=0 || tds===null || tds<0){ indicator.textContent=''; return; }
+  const pct = (tds/amount)*100;
+  const pctStr = (Math.round(pct*100)/100)+'%';
+  let color = 'var(--green)';
+  if(pct<=0) color = 'var(--slate)';
+  else if(pct>10) color = 'var(--rust)';
+  indicator.innerHTML = `<span style="color:${color};">TDS = ${pctStr} of Bill Amount</span>`;
+}
+el('autoTdsCalcBillBtn')?.addEventListener('click', ()=>{
+  const amount = toNumOrNull(el('f-amount').value);
+  if(!amount || amount<=0){ showErr('Pehle Bill Amount bharein, phir TDS auto-calculate karein.'); return; }
+  const rate = Number(el('f-tdsrate').value)||0;
+  el('f-tds').value = Math.round((amount*rate/100)*100)/100;
+  updateComputedFields();
+});
 ['f-amount','f-gst','f-tds','f-paymentamount','f-paydate','f-submitdate','f-hardcopydate','f-emaildate','f-statusoverride'].forEach(id=>{
   el(id).addEventListener('input', updateComputedFields);
   el(id).addEventListener('change', updateComputedFields);
@@ -2260,10 +2329,12 @@ el('exportTurnaroundPartyBtn').addEventListener('click', ()=>{
     columns: [
       { key:'party', header:'Party Name', type:'text' },
       { key:'count', header:'Bills Paid', type:'number' },
+      { value: v => v.avgBill==null ? '' : Math.round(v.avgBill*10)/10, header:'Avg Days to Pay (Bill Date)', type:'text' },
+      { value: v => v.minBill==null ? '' : v.minBill, header:'Fastest (days)', type:'text' },
+      { value: v => v.maxBill==null ? '' : v.maxBill, header:'Slowest (days)', type:'text' },
       { value: v => v.avgEmail==null ? '' : Math.round(v.avgEmail*10)/10, header:'Avg Days after Email', type:'text' },
       { value: v => v.avgHard==null ? '' : Math.round(v.avgHard*10)/10, header:'Avg Days after Hard Copy', type:'text' },
-      { value: v => v.avgPod==null ? '' : Math.round(v.avgPod*10)/10, header:'Avg Days after POD', type:'text' },
-      { value: v => v.avgBill==null ? '' : Math.round(v.avgBill*10)/10, header:'Avg Days after Bill Date', type:'text' }
+      { value: v => v.avgPod==null ? '' : Math.round(v.avgPod*10)/10, header:'Avg Days after POD', type:'text' }
     ],
     sheetName: 'Party-wise Turnaround',
     filenamePrefix: 'TBB_Turnaround_PartyWise_Export',
@@ -2278,11 +2349,12 @@ el('exportTurnaroundDetailBtn').addEventListener('click', ()=>{
       { key:'party', header:'Party Name', type:'text' },
       { key:'billNumber', header:'Bill #', type:'text' },
       { key:'billPeriod', header:'Bill Period', type:'text' },
+      { key:'billDate', header:'Bill Date', type:'date' },
       { value: r => r.effPayDate, header:'Payment Date', type:'date' },
+      { value: r => r.dBill==null ? '' : r.dBill, header:'Days to Pay (Bill Date)', type:'text' },
       { value: r => r.dEmail==null ? '' : r.dEmail, header:'Days after Email', type:'text' },
       { value: r => r.dHard==null ? '' : r.dHard, header:'Days after Hard Copy', type:'text' },
-      { value: r => r.dPod==null ? '' : r.dPod, header:'Days after POD', type:'text' },
-      { value: r => r.dBill==null ? '' : r.dBill, header:'Days after Bill Date', type:'text' }
+      { value: r => r.dPod==null ? '' : r.dPod, header:'Days after POD', type:'text' }
     ],
     sheetName: 'Bill-wise Turnaround',
     filenamePrefix: 'TBB_Turnaround_BillWise_Export'
@@ -2646,6 +2718,19 @@ function renderNewReport(pending, agingRows){
 // turnaround = "kitne din baad payment aaya" — bina payment date ke ye nikal hi nahi sakta.
 function avgDays(list){ if(!list.length) return null; return list.reduce((a,b)=>a+b,0)/list.length; }
 function fmtAvgDays(v){ return v==null ? '—' : (Math.round(v*10)/10)+' din'; }
+// ACCOUNTANT-LEVEL RIGOR: an average alone can hide outliers (one very slow party
+// can be masked by several fast ones, or vice versa) — min/max/median give a true
+// best-case / worst-case / typical-case picture, which is what a proper turnaround
+// analysis needs.
+function minDays(list){ return list.length ? Math.min.apply(null, list) : null; }
+function maxDays(list){ return list.length ? Math.max.apply(null, list) : null; }
+function medianDays(list){
+  if(!list.length) return null;
+  const s = list.slice().sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length%2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+function fmtDaysPlain(v){ return v==null ? '—' : Math.round(v*10)/10; }
 
 function renderTurnaround(){
   // BUGFIX: pehle sirf `entries.filter(e=>e.payDate)` — bills jo sirf Payments tab
@@ -2677,12 +2762,23 @@ function renderTurnaround(){
     : '';
   el('turnaroundNote').innerHTML = note;
 
-  // ---- Top-level KPIs: overall averages across saari parties ----
+  // ---- Top-level KPIs ----
+  // Core metric: "Bill Date -> Payment Date" is the true, always-available measure of
+  // "party ne kitne din mein payment diya" — every paid bill has a Bill Date, whereas
+  // Email/Hard Copy/POD dates are optional and often blank. This row leads with it
+  // (avg + fastest + slowest + median) so it reads as the primary accountant view,
+  // not just one of several equal-weight averages.
+  const billDaysList = rows.filter(r=>r.dBill!=null).map(r=>r.dBill);
   el('turnaroundStatRow').innerHTML = `
+    <div class="stat rust"><div class="icon">🗓️</div><div class="label">Avg. Days to Pay (Bill Date)</div><div class="val">${fmtAvgDays(avgDays(billDaysList))}</div></div>
+    <div class="stat green"><div class="icon">⚡</div><div class="label">Fastest Payment</div><div class="val">${fmtAvgDays(minDays(billDaysList))}</div></div>
+    <div class="stat"><div class="icon">🐢</div><div class="label">Slowest Payment</div><div class="val">${fmtAvgDays(maxDays(billDaysList))}</div></div>
+    <div class="stat"><div class="icon">📊</div><div class="label">Median Days to Pay</div><div class="val">${fmtAvgDays(medianDays(billDaysList))}</div></div>`;
+  if(el('turnaroundStatRow2')) el('turnaroundStatRow2').innerHTML = `
     <div class="stat"><div class="icon">📧</div><div class="label">Avg. Email → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dEmail!=null).map(r=>r.dEmail)))}</div></div>
     <div class="stat"><div class="icon">📦</div><div class="label">Avg. Hard Copy → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dHard!=null).map(r=>r.dHard)))}</div></div>
     <div class="stat"><div class="icon">🧾</div><div class="label">Avg. POD → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dPod!=null).map(r=>r.dPod)))}</div></div>
-    <div class="stat"><div class="icon">🗓️</div><div class="label">Avg. Bill Date → Payment</div><div class="val">${fmtAvgDays(avgDays(rows.filter(r=>r.dBill!=null).map(r=>r.dBill)))}</div></div>`;
+    <div class="stat"><div class="icon">📄</div><div class="label">Total Bills Analyzed</div><div class="val">${rows.length}</div></div>`;
 
   // ---- Party-wise aggregate: kaun si party kis document ke baad kitni der lagati hai ----
   const byParty = {};
@@ -2697,7 +2793,10 @@ function renderTurnaround(){
   });
   const partyRows = Object.entries(byParty).map(([p,v])=>({
     party:p, count:v.count,
-    avgEmail: avgDays(v.email), avgHard: avgDays(v.hard), avgPod: avgDays(v.pod), avgBill: avgDays(v.bill)
+    avgEmail: avgDays(v.email), avgHard: avgDays(v.hard), avgPod: avgDays(v.pod), avgBill: avgDays(v.bill),
+    // Fastest/Slowest give the accountant the real spread for this party (best-case
+    // vs worst-case), not just a single averaged number that can hide outliers.
+    minBill: minDays(v.bill), maxBill: maxDays(v.bill)
   }));
   // Sabse zyada time lene wali party (Bill Date se, ya jo bhi available ho) sabse upar —
   // taaki recovery follow-up me priority saaf dikhe.
@@ -2708,33 +2807,42 @@ function renderTurnaround(){
   el('turnaroundPartyBody').innerHTML = partyRows.length ? partyRows.map(v=>`<tr>
     <td class="name-cell" data-label="Party">${escapeHtml(v.party)}</td>
     <td data-label="Bills Paid">${v.count}</td>
+    <td data-label="Avg Days to Pay (Bill Date)" style="font-weight:800;color:var(--rust);">${fmtAvgDays(v.avgBill)}</td>
+    <td data-label="Fastest" style="color:var(--green);">${fmtAvgDays(v.minBill)}</td>
+    <td data-label="Slowest">${fmtAvgDays(v.maxBill)}</td>
     <td data-label="Avg after Email">${fmtAvgDays(v.avgEmail)}</td>
     <td data-label="Avg after Hard Copy">${fmtAvgDays(v.avgHard)}</td>
     <td data-label="Avg after POD">${fmtAvgDays(v.avgPod)}</td>
-    <td data-label="Avg after Bill Date" style="font-weight:700;">${fmtAvgDays(v.avgBill)}</td>
-  </tr>`).join('') : '<tr><td colspan="6" class="empty">Abhi tak koi paid bill nahi mila jisse turnaround nikal sakein</td></tr>';
+  </tr>`).join('') : '<tr><td colspan="8" class="empty">Abhi tak koi paid bill nahi mila jisse turnaround nikal sakein</td></tr>';
   dashboardExportData.turnaroundPartyRows = partyRows;
   renderSummaryStrip('turnaroundPartySummary', [
     { label:'Total Parties', value: partyRows.length || null },
     { label:'Total Bills Paid', value: partyRows.length ? partyRows.reduce((s,v)=>s+v.count,0) : null },
+    { label:'Overall Avg Days to Pay', value: partyRows.length ? fmtAvgDays(avgDays(billDaysList)) : null },
     { label:'Last Updated', value: nowTimeStr() }
   ]);
 
-  // ---- Bill-wise detail: latest payment sabse upar ----
+  // ---- Bill-wise detail: latest payment sabse upar, sabse purane paid bills upar
+  // ya sabse zyada Days-to-Pay wale bills upar — dono useful hain, isliye default
+  // "latest payment first" hi rakhte hain (jo abhi-abhi aayi payments dekhna hota
+  // hai), lekin table ab Bill Date aur "Days to Pay" ko sabse pehle prominently
+  // dikhati hai kyunki wahi is report ka core purpose hai. ----
   const detailRows = rows.slice().sort((a,b)=> (b.effPayDate||'').localeCompare(a.effPayDate||''));
   el('turnaroundBody').innerHTML = detailRows.length ? detailRows.map(r=>`<tr>
     <td class="name-cell" data-label="Party">${escapeHtml(r.party)}</td>
     <td data-label="Bill #">${escapeHtml(r.billNumber||'—')}</td>
     <td data-label="Period">${escapeHtml(r.billPeriod||'—')}</td>
+    <td data-label="Bill Date">${fmtDate(r.billDate)}</td>
     <td data-label="Payment Date">${fmtDate(r.effPayDate)}</td>
+    <td data-label="Days to Pay (Bill Date)" style="font-weight:800;color:var(--rust);">${r.dBill!=null?r.dBill:'—'}</td>
     <td data-label="Days after Email">${r.dEmail!=null?r.dEmail:'—'}</td>
     <td data-label="Days after Hard Copy">${r.dHard!=null?r.dHard:'—'}</td>
     <td data-label="Days after POD">${r.dPod!=null?r.dPod:'—'}</td>
-    <td data-label="Days after Bill Date" style="font-weight:700;">${r.dBill!=null?r.dBill:'—'}</td>
-  </tr>`).join('') : '<tr><td colspan="8" class="empty">Abhi tak koi paid bill nahi mila</td></tr>';
+  </tr>`).join('') : '<tr><td colspan="9" class="empty">Abhi tak koi paid bill nahi mila</td></tr>';
   dashboardExportData.turnaroundDetailRows = detailRows;
   renderSummaryStrip('turnaroundDetailSummary', [
     { label:'Total Bills', value: detailRows.length || null },
+    { label:'Avg Days to Pay', value: detailRows.length ? fmtAvgDays(avgDays(billDaysList)) : null },
     { label:'Last Updated', value: nowTimeStr() }
   ]);
 }
