@@ -2918,12 +2918,30 @@ function getPendingBillsForParty(party){
   return entries.filter(e=>e.party===party && !isClosedStatus(e))
     .map(e=>{
       const net = (e.netAmount!=null) ? Number(e.netAmount) : calcNetAmount(e.amount, e.gstAmount, e.tds);
-      // When editing an existing payment, its OWN old allocations shouldn't
-      // count against a bill's "already pending" figure (we're about to
-      // replace them), so we exclude them here and re-add only the bill's
-      // current row when building the allocation table for that payment.
-      const otherAlloc = allocations.filter(a=>a.billId===e.id && a.paymentId!==editingPaymentId).reduce((s,a)=>s+(Number(a.amountApplied)||0),0);
-      const pendingExcludingThisPayment = net - otherAlloc;
+      let pendingExcludingThisPayment;
+      if(billHasAllocations(e.id)){
+        // When editing an existing payment, its OWN old allocations shouldn't
+        // count against a bill's "already pending" figure (we're about to
+        // replace them), so we exclude them here and re-add only the bill's
+        // current row when building the allocation table for that payment.
+        const otherAlloc = allocations.filter(a=>a.billId===e.id && a.paymentId!==editingPaymentId).reduce((s,a)=>s+(Number(a.amountApplied)||0),0);
+        pendingExcludingThisPayment = net - otherAlloc;
+      } else {
+        // BUGFIX: a bill that was already marked Paid/Partially-Paid the OLD way
+        // (its own Payment Date + Payment Amount fields on the Entries form,
+        // never touched by a Payments-tab allocation) used to fall straight
+        // through to "net - 0 = full net amount" here, since otherAlloc is
+        // naturally 0 for it (no allocation rows exist). That made a bill the
+        // Party Ledger/Dashboard/Entries tab all correctly show as fully Paid
+        // (₹0 balance) still show up in Record Payment's pending-bills table
+        // with its FULL amount as "Already Pending" — risking a second payment
+        // being wrongly allocated on top of an already-settled bill. This now
+        // uses the exact same legacy-aware calculation (calcPendingAmount) that
+        // computeStatusAuto/entryPendingAmount already use everywhere else, so
+        // "already pending" here always agrees with what's shown as Paid/
+        // Pending across the rest of the app.
+        pendingExcludingThisPayment = calcPendingAmount(net, e.paymentAmount, e.payDate);
+      }
       return {...e, net, pendingExcludingThisPayment};
     })
     .filter(e=>e.pendingExcludingThisPayment > 0.01)
